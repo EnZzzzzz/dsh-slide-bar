@@ -1,0 +1,7 @@
+# dsh-slide-bar bundle patch: inserting this package into the web-app client
+# roster turns it into a `dsh.client` row — the modules node half scans the
+# row, serves /plugins/dsh-slide-bar/client.js, and adds it to the browser
+# boot graph. The row's node half is the package's empty apply placeholder.
+- insert:
+    - id: dsh-slide-bar
+      name: 'dsh-slide-bar'

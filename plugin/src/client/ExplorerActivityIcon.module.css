@@ -1,0 +1,36 @@
+/* The explorer's activity-strip icon. Geometry mirrors the shell's own
+   icon-button base (the strip and rail lay entries out; each entry paints
+   its own resting/hover/active chrome). */
+
+.iconButton {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.iconButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* Rail icons are 36px (the shell's collapsed column rhythm). */
+.iconButton.rail {
+  width: 36px;
+  height: 36px;
+}
+
+/* Active: the sidebar-nav active fill plus the primary ink, same as the
+   shell's built-in Sessions icon. */
+.iconButton.active,
+.iconButton.active:hover {
+  background: var(--dsw-specific-sidebar-nav-item-active);
+  color: var(--dsw-alias-label-primary);
+}

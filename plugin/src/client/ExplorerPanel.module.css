@@ -1,0 +1,167 @@
+/* Explorer panel: header (title + view actions) and the file tree. Fills the
+   sidebar shell's panel area; rows ride the same hover chrome as the shell's
+   icon buttons. */
+
+.root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding-right: var(--dsh-sidebar-inline-padding);
+}
+
+.header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  height: 36px;
+  padding-left: 4px;
+  margin: 2px -4px 4px 0;
+  box-sizing: border-box;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+}
+
+.headerActions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.iconButton {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.iconButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* Toggled-on view action (hidden files shown). */
+.iconButton.activeAction,
+.iconButton.activeAction:hover {
+  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-label-primary);
+}
+
+.tree {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-right: 8px;
+  box-sizing: border-box;
+  background: transparent;
+  cursor: pointer;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  text-align: left;
+}
+
+.row:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.chevron {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.rowIcon {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* File rows carry no glyph: chevron (14) + gap (4) + folder icon (16). */
+.fileSpacer {
+  flex: none;
+  width: 34px;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-right: 8px;
+  box-sizing: border-box;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}
+
+.errorText {
+  flex: 1;
+  min-width: 0;
+  color: var(--dsw-alias-label-error);
+  overflow-wrap: break-word;
+}
+
+.retryButton {
+  flex: none;
+  border: none;
+  border-radius: 6px;
+  padding: 2px 8px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.retryButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.empty {
+  padding: 16px 12px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+}
+
+.emptyHint {
+  margin-top: 4px;
+  font-size: 12px;
+}
