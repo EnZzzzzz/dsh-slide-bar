@@ -62,4 +62,4 @@ dsh（DeepSeek Harness）的 Web UI 左侧边栏目前只有一个固定的「�
 
 - 插件本体已完成：`../plugin/`（独立 dsh 插件包 `dsh-slide-bar`，含测试）。
 - dsh 接口参考：`./dsh-ui-plugin-interface.md`。
-- 框架侧曾有一版实现并验证通过，补丁备份在 `../backup/dsh-framework-changes-2026-08-23/`（dsh 仓库当前为干净状态，未应用）。新实现可与之一致，也可自行设计。
+- 框架侧曾有一版实现并验证通过（需要改动 `ui-sidebar`）；本方案改为不改仓库的自包含运行时插件 `../runtime-plugin/`，已验证运行。

@@ -23,7 +23,7 @@ dsh 的 slot 系统规定：**子槽位只能由注册父槽位的那个 entry �
 - 一个纯插件**无法**在重绘 `sidebar` 的同时再重新声明并渲染既有的 `sidebar.workspaces` / `sidebar.settings`（会抛 `slot "…" is already declared`）；
 - 也无法用 `renderSlot` 渲染自己没声明的子槽位（抛 `SlotOwnershipError`）。
 
-这正是你之前那版「侵入式改动」把活动栏放进 `ui-sidebar` 的根本原因。本插件的取舍：**用自带的轻量「会话」面板（`useSessions`/`useWorkspaces` 渲染工作区+会话列表）替代原有工作区浏览器作为默认面板**，并在 shell 里省略了 settings 座位。若要把真正的 `sidebar.workspaces`/`sidebar.settings` 保留下来，唯一无回归的路径仍是给 `ui-sidebar` 做那处最小框架改动（已备份在 `../backup/dsh-framework-changes-2026-08-23/`）。
+这正是你之前那版「侵入式改动」把活动栏放进 `ui-sidebar` 的根本原因。本插件的取舍：**用自带的轻量「会话」面板（`useSessions`/`useWorkspaces` 渲染工作区+会话列表）替代原有工作区浏览器作为默认面板**，并在 shell 里省略了 settings 座位。若要把真正的 `sidebar.workspaces`/`sidebar.settings` 保留下来，唯一无回归的路径仍是给 `ui-sidebar` 做那处活动栏外壳的最小框架改动。
 
 ## 运行与验证
 
