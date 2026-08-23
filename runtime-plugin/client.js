@@ -120,6 +120,9 @@ return {
 .dshsb-sessdot-on{width:8px;height:8px;border-radius:50%;background:var(--dsw-alias-state-success-primary)}
 .dshsb-sessname{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .dshsb-sessmeta{flex:none;font-size:11px;opacity:.75;max-width:45%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.dshsb-menu{position:fixed;z-index:10000;min-width:160px;padding:4px;border-radius:8px;background:var(--dsw-alias-bg-overlay);border:1px solid var(--dsw-alias-border-l1);box-shadow:0 6px 20px rgba(0,0,0,.18);font-size:13px;color:var(--dsw-alias-label-primary)}
+.dshsb-menu-item{display:flex;align-items:center;gap:8px;width:100%;padding:6px 10px;border:none;border-radius:6px;background:transparent;cursor:pointer;color:var(--dsw-alias-label-secondary);text-align:left;font-size:13px;font-family:inherit}
+.dshsb-menu-item:hover{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}
 `
     const disposeCss = styles.insert(CSS)
 
@@ -139,6 +142,61 @@ return {
       const w = ctx.get('workspaces')
       if (w && typeof w.openPath === 'function') return w.openPath(path)
       return Promise.reject(new Error('工作区服务不可用'))
+    }
+
+    // ---- explorer context-menu verbs ----
+    function fallbackCopy(text) {
+      try {
+        if (typeof document === 'undefined') return
+        const ta = document.createElement('textarea')
+        ta.value = text
+        ta.style.position = 'fixed'
+        ta.style.opacity = '0'
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+      } catch (e) { /* best-effort */ }
+    }
+    function copyText(text) {
+      try {
+        if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          navigator.clipboard.writeText(text).catch(() => { fallbackCopy(text) })
+          return
+        }
+      } catch (e) { /* fall through */ }
+      fallbackCopy(text)
+    }
+    // Path under the explorer root; falls back to the absolute path.
+    function relativePath(root, path) {
+      if (typeof root !== 'string' || root === '' || typeof path !== 'string') return path
+      const normRoot = root.replace(/[/\\]+$/, '')
+      if (path === normRoot) return path.split(/[/\\]/).pop() || path
+      if (path.startsWith(normRoot + '/') || path.startsWith(normRoot + '\\')) {
+        return path.slice(normRoot.length + 1)
+      }
+      return path
+    }
+    // Append a path reference to the current session's composer draft through
+    // the conversation input facade (best-effort; no-ops when unavailable).
+    function addPathToSession(path, currentId) {
+      const conversation = ctx.get('conversation')
+      const sessionsSvc = ctx.get('sessions')
+      if (!conversation || !sessionsSvc || typeof conversation.input !== 'object') return
+      if (currentId === undefined) return
+      let binding
+      try { binding = sessionsSvc.binding(currentId) } catch (e) { return }
+      if (!binding || !binding.ctx) return
+      let input
+      try { input = conversation.input.for(binding.ctx) } catch (e) { return }
+      if (!input || typeof input.setDraft !== 'function') return
+      let draft = ''
+      try {
+        const state = input.state && typeof input.state.getSnapshot === 'function' ? input.state.getSnapshot() : null
+        draft = state && typeof state.draft === 'string' ? state.draft : ''
+      } catch (e) { /* keep empty */ }
+      const text = draft === '' ? path : draft.replace(/\s+$/, '') + ' ' + path
+      try { input.setDraft(text) } catch (e) { /* ignore */ }
     }
 
     function deriveRootPath(sessions, workspaces) {
@@ -424,6 +482,7 @@ return {
       const abort = props.abort
       const toggle = props.toggle
       const openFile = props.openFile
+      const onContextMenu = props.onContextMenu
 
       const children = view.childrenByPath[path]
       const error = view.errorByPath[path]
@@ -461,12 +520,13 @@ return {
               style: indent,
               'aria-expanded': expanded,
               onClick: () => { toggle(entry.path, !expanded) },
+              onContextMenu: (e) => { e.preventDefault(); onContextMenu(entry.path, 'directory', e.clientX, e.clientY) },
             },
               React.createElement(SvgIcon, { className: 'dshsb-chev', d: expanded ? ICONS.chevronDown : ICONS.chevronRight, size: 14 }),
               React.createElement(SvgIcon, { className: 'dshsb-rowicon', d: ICONS.folder, size: 16 }),
               React.createElement('span', { className: 'dshsb-name' }, entry.name)),
             expanded
-              ? React.createElement(DirectoryChildren, { path: entry.path, depth: depth + 1, view, load, abort, toggle, openFile })
+              ? React.createElement(DirectoryChildren, { path: entry.path, depth: depth + 1, view, load, abort, toggle, openFile, onContextMenu })
               : null))
         } else {
           rows.push(React.createElement('button', {
@@ -475,6 +535,7 @@ return {
             className: 'dshsb-row',
             style: indent,
             onClick: () => { openFile(entry.path) },
+            onContextMenu: (e) => { e.preventDefault(); onContextMenu(entry.path, 'file', e.clientX, e.clientY) },
           },
             React.createElement('span', { className: 'dshsb-filespacer' }),
             React.createElement(SvgIcon, { className: 'dshsb-rowicon', d: ICONS.file, size: 16 }),
@@ -485,6 +546,26 @@ return {
         rows.push(React.createElement('div', { key: '__trunc', className: 'dshsb-status', style: indent }, '条目过多，仅显示部分内容'))
       }
       return React.createElement(React.Fragment, null, rows)
+    }
+
+    // ---- explorer row context menu ----
+    function ExplorerMenu({ menu, rootPath, currentId, onClose }) {
+      if (menu === null) return null
+      const vw = typeof window !== 'undefined' ? window.innerWidth : 480
+      const vh = typeof window !== 'undefined' ? window.innerHeight : 360
+      const x = Math.max(4, Math.min(menu.x, vw - 190))
+      const y = Math.max(4, Math.min(menu.y, vh - 128))
+      const copyAbs = () => { copyText(menu.path); onClose() }
+      const copyRel = () => { copyText(relativePath(rootPath, menu.path)); onClose() }
+      const addToSession = () => { addPathToSession(menu.path, currentId); onClose() }
+      return React.createElement('div', {
+        className: 'dshsb-menu',
+        style: { left: x, top: y },
+        onContextMenu: (e) => { e.preventDefault() },
+      },
+        React.createElement('button', { type: 'button', className: 'dshsb-menu-item', onClick: copyAbs }, '复制路径'),
+        React.createElement('button', { type: 'button', className: 'dshsb-menu-item', onClick: copyRel }, '复制相对路径'),
+        React.createElement('button', { type: 'button', className: 'dshsb-menu-item', onClick: addToSession }, '添加到会话'))
     }
 
     // ---- explorer panel ----
@@ -543,6 +624,30 @@ return {
         dispatch({ type: 'invalidate' })
       }, [controllers])
 
+      // Right-click context menu state (path + pointer position).
+      const [menu, setMenu] = React.useState(null)
+      const openMenu = React.useCallback((path, kind, x, y) => { setMenu({ path, kind, x, y }) }, [])
+      const closeMenu = React.useCallback(() => { setMenu(null) }, [])
+      React.useEffect(() => {
+        if (props.activePanelId !== props.panelId) closeMenu()
+      }, [props.activePanelId, props.panelId, closeMenu])
+      React.useEffect(() => {
+        if (menu === null) return
+        const isInside = (target) => target && typeof target.closest === 'function' && target.closest('.dshsb-menu') !== null
+        const onDown = (e) => { if (!isInside(e.target)) closeMenu() }
+        const onKey = (e) => { if (e.key === 'Escape') closeMenu() }
+        if (typeof window !== 'undefined') {
+          window.addEventListener('mousedown', onDown, true)
+          window.addEventListener('keydown', onKey, true)
+        }
+        return () => {
+          if (typeof window !== 'undefined') {
+            window.removeEventListener('mousedown', onDown, true)
+            window.removeEventListener('keydown', onKey, true)
+          }
+        }
+      }, [menu, closeMenu])
+
       if (props.activePanelId !== props.panelId) return null
 
       const header = React.createElement('div', { className: 'dshsb-header' },
@@ -577,8 +682,9 @@ return {
             React.createElement('div', { className: 'dshsb-emptyhint' }, '打开或新建一个会话后，这里会显示其工作目录。')))
       }
       return React.createElement('div', { className: 'dshsb-panelroot' }, header,
-        React.createElement('div', { className: 'dshsb-tree' },
-          React.createElement(DirectoryChildren, { path: rootPath, depth: 0, view, load, abort, toggle, openFile })))
+        React.createElement('div', { className: 'dshsb-tree', onScroll: closeMenu },
+          React.createElement(DirectoryChildren, { path: rootPath, depth: 0, view, load, abort, toggle, openFile, onContextMenu: openMenu })),
+        React.createElement(ExplorerMenu, { menu, rootPath, currentId: sessions.current, onClose: closeMenu }))
     }
 
     // ---- registrations (one lifecycle effect) ----

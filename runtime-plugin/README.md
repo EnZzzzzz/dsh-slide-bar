@@ -13,7 +13,7 @@
 
 1. **重绘 `sidebar`（single 槽位，`shadows-shipped-ui`）**：用 `priority: -1` 把内置的 `ui-sidebar` SidebarRoot 影子掉，换成自带的 shell（活动条 + 面板区）。
 2. **活动栏 + 面板切换**：shell 持有 `activePanelId`（localStorage `dsh.sidebar.view.v1` 持久化），通过 `renderSlot` 把 `activePanelId`/`selectPanel`/`wide` 作为 owner props 下发给子槽位；图标点击切换并高亮，面板按 `activePanelId !== panelId` 自门控渲染 null。
-3. **资源管理器**：把 `plugin/src/client/ExplorerPanel.tsx` + `stores.ts` 的设计/算法原样移植成纯 JS（`useReducer` 视图状态 + localStorage 持久化 + 每路径一个 `AbortController` + 懒加载/重试/截断/隐藏文件开关）。
+3. **资源管理器**：把 `plugin/src/client/ExplorerPanel.tsx` + `stores.ts` 的设计/算法原样移植成纯 JS（`useReducer` 视图状态 + localStorage 持久化 + 每路径一个 `AbortController` + 懒加载/重试/截断/隐藏文件开关）；行级右键菜单支持「复制路径 / 复制相对路径 / 添加到会话」（后者经 `ctx.get('conversation').input.for(binding.ctx).setDraft` 把路径追加进当前会话的组合框草稿）。
 4. **目录数据**：Client 用 `host.call('list-directory', …)` 经 Host 的 `fs.listDir` 取数（`ctx.workspaces.listDirectory` 在干净仓库里只列目录、无 `kind`，不够文件树用）。
 
 ## 关键约束（为什么活动栏必须这样做）
