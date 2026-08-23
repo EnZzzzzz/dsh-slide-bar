@@ -64,11 +64,13 @@ return {
       chevronRight: 'M6 3.5 L10 8 L6 12.5',
       chevronDown: 'M3.5 6 L8 10 L12.5 6',
       folder: 'M2 4.5 A1.5 1.5 0 0 1 3.5 3 H5.8 L7.3 4.5 H12.5 A1.5 1.5 0 0 1 14 6 V11.5 A1.5 1.5 0 0 1 12.5 13 H3.5 A1.5 1.5 0 0 1 2 11.5 Z',
+      folderOpen: 'M2 4.5 A1.5 1.5 0 0 1 3.5 3 H5.8 L7.3 4.5 H10.3 L11 6.2 H14 L13.4 11.5 A1.5 1.5 0 0 1 11.9 13 H3.5 A1.5 1.5 0 0 1 2 11.5 Z',
       file: 'M4 2 H9 L12 5 V12.5 A1.5 1.5 0 0 1 10.5 14 H4 A1.5 1.5 0 0 1 2.5 12.5 V3.5 A1.5 1.5 0 0 1 4 2 Z M9 2 V5 H12',
       refresh: 'M13.5 8 A5.5 5.5 0 1 1 11 4.3 M13.5 3 V5.5 H11',
       eye: 'M2 8 C4 4.5 12 4.5 14 8 C12 11.5 4 11.5 2 8 Z M6.5 8 A1.5 1.5 0 1 0 9.5 8 A1.5 1.5 0 0 0 6.5 8 Z',
       panelLeft: 'M6 2.5 H4.5 A1.5 1.5 0 0 0 3 4 V12 A1.5 1.5 0 0 0 4.5 13.5 H6 Z M6 2.5 V13.5 M13.5 2.5 H11.5 V13.5 H13.5 Z',
       chat: 'M2.5 4 A1.5 1.5 0 0 1 4 2.5 H12 A1.5 1.5 0 0 1 13.5 4 V9 A1.5 1.5 0 0 1 12 10.5 H7 L4 13.5 V10.5 H4 A1.5 1.5 0 0 1 2.5 9 Z',
+      plus: 'M8 3 V13 M3 8 H13',
     }
 
     // ---- styles (theme tokens only) ----
@@ -104,11 +106,20 @@ return {
 .dshsb-empty{padding:16px 12px;color:var(--dsw-alias-label-secondary);font-size:13px}
 .dshsb-emptyhint{margin-top:4px;font-size:12px}
 .dshsb-section{padding:12px 12px 4px;font-size:11px;font-weight:600;letter-spacing:0.03em;color:var(--dsw-alias-label-secondary)}
-.dshsb-sessrow{display:flex;flex-direction:column;gap:1px;width:100%;padding:6px 12px;border:none;background:transparent;cursor:pointer;text-align:left;color:var(--dsw-alias-label-secondary);border-radius:8px;box-sizing:border-box}
-.dshsb-sessrow:hover{background:var(--dsw-alias-bg-layer-1)}
+.dshsb-group{display:flex;align-items:center;gap:4px;width:100%;height:34px;padding:0 8px;box-sizing:border-box;border:none;background:transparent;cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:13px;text-align:left;border-radius:8px}
+.dshsb-group:hover{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}
+.dshsb-group-fold{flex:none;color:var(--dsw-alias-label-secondary)}
+.dshsb-group-chev{flex:none;color:var(--dsw-alias-label-secondary);transition:transform .15s ease}
+.dshsb-group-chev-open{transform:rotate(90deg)}
+.dshsb-group-title{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:600}
+.dshsb-group-count{flex:none;font-size:11px;opacity:.75}
+.dshsb-sessrow{display:flex;align-items:center;gap:4px;width:100%;height:34px;padding:0 8px 0 8px;box-sizing:border-box;border:none;background:transparent;cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:13px;text-align:left;border-radius:8px}
+.dshsb-sessrow:hover{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}
 .dshsb-sessrow-active,.dshsb-sessrow-active:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
-.dshsb-sessname{font-size:13px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.dshsb-sessmeta{font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;opacity:0.75}
+.dshsb-sessdot{flex:none;width:16px;display:inline-flex;align-items:center;justify-content:flex-start}
+.dshsb-sessdot-on{width:8px;height:8px;border-radius:50%;background:var(--dsw-alias-state-success-primary)}
+.dshsb-sessname{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.dshsb-sessmeta{flex:none;font-size:11px;opacity:.75;max-width:45%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 `
     const disposeCss = styles.insert(CSS)
 
@@ -193,59 +204,158 @@ return {
       }, React.createElement(SvgIcon, { d: icon, size: props.wide ? 16 : 18 }))
     }
 
-    // ---- default "会话" panel (lightweight session/workspace list) ----
+    // ---- 会话 panel: collapsible workspace tree (first level = workspace) ----
+    function basename(path) {
+      if (typeof path !== 'string' || path === '') return undefined
+      const trimmed = path.replace(/[/\\]+$/, '')
+      const parts = trimmed.split(/[/\\]/)
+      return parts[parts.length - 1]
+    }
+    function sessionVisible(summary, current, archived) {
+      return summary.origin !== 'subagent'
+        && !archived.has(summary.id)
+        && (!summary.blank || summary.id === current)
+    }
+    function buildSessionsTree(sessions, items, archived, current) {
+      const byId = sessions.byId || {}
+      const groups = []
+      const accounted = new Set()
+      for (const workspace of items) {
+        const members = []
+        for (const id of (workspace.sessionIds || [])) {
+          const summary = byId[id]
+          if (summary === undefined) continue
+          accounted.add(id)
+          if (!sessionVisible(summary, current, archived)) continue
+          members.push(summary)
+        }
+        groups.push({
+          key: workspace.workspaceId,
+          label: workspace.title || basename(workspace.path) || '工作区',
+          members,
+        })
+      }
+      const stray = (sessions.ids || [])
+        .map(id => byId[id])
+        .filter(summary => summary !== undefined
+          && !accounted.has(summary.id)
+          && sessionVisible(summary, current, archived))
+      if (stray.length > 0) {
+        groups.push({ key: '', label: '未分组', members: stray })
+      }
+      return groups
+    }
+    function relativeTimeLabel(updatedAt) {
+      const diff = Math.max(0, Date.now() - (typeof updatedAt === 'number' ? updatedAt : 0))
+      const MIN = 60000
+      const HOUR = 3600000
+      const DAY = 86400000
+      if (diff < MIN) return '刚刚'
+      if (diff < HOUR) return Math.floor(diff / MIN) + ' 分钟前'
+      if (diff < DAY) return Math.floor(diff / HOUR) + ' 小时前'
+      if (diff < 30 * DAY) return Math.floor(diff / DAY) + ' 天前'
+      if (diff < 365 * DAY) return Math.floor(diff / (30 * DAY)) + ' 个月前'
+      return Math.floor(diff / (365 * DAY)) + ' 年前'
+    }
     function SessionsPanel(props) {
       const sessions = props.useSessions((s) => s)
       const wss = props.useWorkspaces((s) => s)
-      if (props.activePanelId !== props.panelId) return null
+      const [groupExpansion, setGroupExpansion] = React.useState(() => {
+        const saved = readJSON('dsh.sidebar.sessions.groups.v1')
+        return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}
+      })
+      React.useEffect(() => {
+        writeJSON('dsh.sidebar.sessions.groups.v1', groupExpansion)
+      }, [groupExpansion])
 
       const s = sessions || {}
       const w = wss || {}
-      const byId = s.byId || {}
-      const ids = s.ids || []
+      const archived = new Set(w.archivedSessionIds || [])
+      const current = s.current
       const items = w.items || []
+      const groups = buildSessionsTree(s, items, archived, current)
+
+      // Auto-expand the group holding the current session unless the user has
+      // explicitly set that group (matches the shipped workspace browser).
+      const currentGroupKey = (() => {
+        if (current === undefined) return undefined
+        for (const g of groups) {
+          if (g.key === '') continue
+          if (g.members.some(m => m.id === current)) return g.key
+        }
+        return groups.some(g => g.key === '') ? '' : undefined
+      })()
+      React.useEffect(() => {
+        if (currentGroupKey === undefined) return
+        if (Object.prototype.hasOwnProperty.call(groupExpansion, currentGroupKey)) return
+        setGroupExpansion(prev => Object.assign({}, prev, { [currentGroupKey]: true }))
+      }, [currentGroupKey, groupExpansion])
+
+      if (props.activePanelId !== props.panelId) return null
+
       const sessionsSvc = ctx.get('sessions')
       const wsSvc = ctx.get('workspaces')
-
       const openSession = (id) => { if (sessionsSvc) sessionsSvc.open(id) }
-      const connect = (id) => { if (wsSvc) wsSvc.connectWorkspace(id) }
+      const startNew = () => { if (wsSvc && typeof wsSvc.startSession === 'function') wsSvc.startSession() }
+      const toggleGroup = (key) => {
+        setGroupExpansion(prev => {
+          const next = Object.assign({}, prev)
+          if (next[key] === true) delete next[key]
+          else next[key] = true
+          return next
+        })
+      }
 
       const rows = []
-      if (items.length > 0) {
-        rows.push(React.createElement('div', { key: 'ws-sec', className: 'dshsb-section' }, '工作区'))
-        for (const item of items) {
-          rows.push(React.createElement('button', {
-            key: 'ws-' + item.workspaceId,
-            type: 'button',
-            className: 'dshsb-sessrow',
-            onClick: () => { connect(item.workspaceId) },
-          },
-            React.createElement('span', { className: 'dshsb-sessname' }, item.title || item.path || '未命名工作区'),
-            React.createElement('span', { className: 'dshsb-sessmeta' }, item.path || '')))
-        }
-      }
-      if (ids.length > 0) {
-        rows.push(React.createElement('div', { key: 's-sec', className: 'dshsb-section' }, '会话'))
-        for (const id of ids) {
-          const sess = byId[id]
-          if (!sess) continue
-          const active = s.current === id
-          rows.push(React.createElement('button', {
-            key: 's-' + id,
-            type: 'button',
-            className: active ? 'dshsb-sessrow dshsb-sessrow-active' : 'dshsb-sessrow',
-            onClick: () => { openSession(id) },
-          },
-            React.createElement('span', { className: 'dshsb-sessname' }, sess.title || sess.cwd || ('会话 ' + String(id).slice(0, 8))),
-            React.createElement('span', { className: 'dshsb-sessmeta' }, sess.cwd || '')))
-        }
-      }
-      if (rows.length === 0) {
+      if (groups.length === 0) {
         rows.push(React.createElement('div', { key: 'empty', className: 'dshsb-empty' }, '还没有会话或工作区。'))
+      } else {
+        groups.forEach((group) => {
+          const expanded = groupExpansion[group.key] === true
+          rows.push(React.createElement('button', {
+            key: 'g-' + group.key,
+            type: 'button',
+            className: 'dshsb-group',
+            role: 'treeitem',
+            'aria-expanded': expanded,
+            onClick: () => { toggleGroup(group.key) },
+          },
+            React.createElement(SvgIcon, { className: 'dshsb-group-fold', d: expanded ? ICONS.folderOpen : ICONS.folder, size: 16 }),
+            React.createElement(SvgIcon, { className: expanded ? 'dshsb-group-chev dshsb-group-chev-open' : 'dshsb-group-chev', d: ICONS.chevronRight, size: 14 }),
+            React.createElement('span', { className: 'dshsb-group-title' }, group.label),
+            React.createElement('span', { className: 'dshsb-group-count' }, String(group.members.length))))
+          if (expanded) {
+            group.members.forEach((m) => {
+              const active = m.id === current
+              const showDot = m.running === true || m.completed === true
+              rows.push(React.createElement('button', {
+                key: 's-' + m.id,
+                type: 'button',
+                className: active ? 'dshsb-sessrow dshsb-sessrow-active' : 'dshsb-sessrow',
+                role: 'treeitem',
+                'aria-selected': active,
+                onClick: () => { openSession(m.id) },
+              },
+                React.createElement('span', { className: 'dshsb-sessdot' },
+                  showDot ? React.createElement('span', { className: 'dshsb-sessdot-on' }) : null),
+                React.createElement('span', { className: 'dshsb-sessname' }, m.blank ? '新会话' : m.displayTitle),
+                m.blank ? null : React.createElement('span', { className: 'dshsb-sessmeta' }, relativeTimeLabel(m.updatedAt))))
+            })
+          }
+        })
       }
 
       return React.createElement('div', { className: 'dshsb-panelroot' },
-        React.createElement('div', { className: 'dshsb-header' }, React.createElement('span', { className: 'dshsb-title' }, '会话')),
+        React.createElement('div', { className: 'dshsb-header' },
+          React.createElement('span', { className: 'dshsb-title' }, '会话'),
+          React.createElement('div', { className: 'dshsb-headeractions' },
+            React.createElement('button', {
+              type: 'button',
+              className: 'dshsb-headbtn',
+              title: '新建会话',
+              'aria-label': '新建会话',
+              onClick: startNew,
+            }, React.createElement(SvgIcon, { d: ICONS.plus, size: 16 })))),
         React.createElement('div', { className: 'dshsb-tree' }, rows))
     }
 
