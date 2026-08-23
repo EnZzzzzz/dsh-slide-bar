@@ -177,9 +177,29 @@ return {
       }
       return path
     }
-    // Append a path reference to the current session's composer draft through
-    // the conversation input facade (best-effort; no-ops when unavailable).
-    function addPathToSession(path, currentId) {
+    // `@file` mention grammar, mirroring dsh-file-reference's formatFileMention:
+    // `@path`, `@"path with spaces"`, directories keep the trailing slash (and
+    // an open quote) so completion can descend another level.
+    function formatFileMention(path, kind) {
+      if (typeof path !== 'string' || path === '') return undefined
+      const p = kind === 'directory' ? path.replace(/[/\\]+$/, '') + '/' : path
+      if (/[\u0000-\u001f\u007f-\u009f"]/u.test(p)) return undefined
+      const quoted = /\s/u.test(p)
+      if (!quoted) return '@' + p
+      if (kind === 'directory') return '@"' + p
+      return '@"' + p + '"'
+    }
+    function basenamePath(path) {
+      if (typeof path !== 'string' || path === '') return ''
+      const parts = path.replace(/[/\\]+$/, '').split(/[/\\]/)
+      return parts[parts.length - 1] || ''
+    }
+    // Add a path to the current session's composer as a native `@file` mention,
+    // mirroring the shipped @ source: files become a real chip occurrence
+    // (insertReference, appearance 'file'), directories the plain `@dir/` text.
+    function addPathToSession(path, kind, currentId) {
+      const mention = formatFileMention(path, kind)
+      if (mention === undefined) return
       const conversation = ctx.get('conversation')
       const sessionsSvc = ctx.get('sessions')
       if (!conversation || !sessionsSvc || typeof conversation.input !== 'object') return
@@ -189,13 +209,31 @@ return {
       if (!binding || !binding.ctx) return
       let input
       try { input = conversation.input.for(binding.ctx) } catch (e) { return }
-      if (!input || typeof input.setDraft !== 'function') return
-      let draft = ''
-      try {
-        const state = input.state && typeof input.state.getSnapshot === 'function' ? input.state.getSnapshot() : null
-        draft = state && typeof state.draft === 'string' ? state.draft : ''
-      } catch (e) { /* keep empty */ }
-      const text = draft === '' ? path : draft.replace(/\s+$/, '') + ' ' + path
+      if (!input) return
+
+      const snapshot = () => {
+        try {
+          const s = input.state && typeof input.state.getSnapshot === 'function' ? input.state.getSnapshot() : null
+          return { draft: s && typeof s.draft === 'string' ? s.draft : '', rev: s && typeof s.draftRev === 'number' ? s.draftRev : 0 }
+        } catch (e) { return { draft: '', rev: 0 } }
+      }
+
+      if (kind === 'file' && input.insertReference && typeof input.insertReference === 'function') {
+        // Real @file chip: mint one occurrence at the end of the draft. A
+        // separating space is folded in first so the chip does not abut text.
+        let state = snapshot()
+        if (state.draft !== '' && !/\s$/.test(state.draft)) {
+          try { input.setDraft(state.draft + ' ') } catch (e) { /* ignore */ }
+          state = snapshot()
+        }
+        const span = { start: state.draft.length, end: state.draft.length, draftRev: state.rev }
+        const ref = { source: 'reference', ref: mention, label: basenamePath(path), appearance: 'file', clipboardText: mention }
+        try { input.insertReference(ref, span) } catch (e) { /* ignore */ }
+        return
+      }
+      // Directory (or fallback): plain `@dir/` text append.
+      const cur = snapshot()
+      const text = cur.draft === '' ? mention : cur.draft.replace(/\s+$/, '') + ' ' + mention
       try { input.setDraft(text) } catch (e) { /* ignore */ }
     }
 
@@ -557,7 +595,7 @@ return {
       const y = Math.max(4, Math.min(menu.y, vh - 128))
       const copyAbs = () => { copyText(menu.path); onClose() }
       const copyRel = () => { copyText(relativePath(rootPath, menu.path)); onClose() }
-      const addToSession = () => { addPathToSession(menu.path, currentId); onClose() }
+      const addToSession = () => { addPathToSession(menu.path, menu.kind, currentId); onClose() }
       return React.createElement('div', {
         className: 'dshsb-menu',
         style: { left: x, top: y },
