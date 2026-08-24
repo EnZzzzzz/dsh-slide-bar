@@ -7,14 +7,14 @@
  * from the return type.
  */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
-import type { DirectoryEntry } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ExplorerEntry } from './contract/slots.ts'
 
 /** Explorer viewing state persisted across panel remounts and reloads. */
 type ExplorerViewState = {
   /** Directory path → expanded; collapsed paths are absent. */
   expansion: Record<string, boolean>
   /** Fetched one-level children per directory path (the listing cache). */
-  childrenByPath: Record<string, DirectoryEntry[]>
+  childrenByPath: Record<string, ExplorerEntry[]>
   /** Paths with an in-flight listing request (display-only; fetch gating is the component's controllers). */
   loadingPaths: string[]
   /** Path → last listing failure message (presence suppresses auto-refetch; retry is manual). */
@@ -32,7 +32,7 @@ type ExplorerViewState = {
 type ExplorerViewActions = {
   setExpanded: (draft: ExplorerViewState, path: string, expanded: boolean) => void
   setLoading: (draft: ExplorerViewState, path: string, loading: boolean) => void
-  setChildren: (draft: ExplorerViewState, path: string, entries: DirectoryEntry[], truncated: boolean) => void
+  setChildren: (draft: ExplorerViewState, path: string, entries: ExplorerEntry[], truncated: boolean) => void
   setError: (draft: ExplorerViewState, path: string, message: string) => void
   toggleHidden: (draft: ExplorerViewState) => void
   invalidate: (draft: ExplorerViewState) => void
@@ -69,7 +69,7 @@ export function createExplorerStore(): EngineStoreHandle<ExplorerViewState, Expl
           d.loadingPaths = d.loadingPaths.filter(p => p !== path)
         }
       },
-      setChildren: (d, path: string, entries: DirectoryEntry[], truncated: boolean) => {
+      setChildren: (d, path: string, entries: ExplorerEntry[], truncated: boolean) => {
         d.childrenByPath[path] = entries
         if (truncated) d.truncatedByPath[path] = true
         else d.truncatedByPath = omitKey(d.truncatedByPath, path)

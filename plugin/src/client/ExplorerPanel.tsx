@@ -21,9 +21,9 @@ import {
   IconFolderClose16, IconRefreshOutline16, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
-  DirectoryEntry, SessionListState, WorkspaceListState,
+  SessionListState, WorkspaceListState,
 } from '@deepseek-ai/dsh-client-runtime/client'
-import type { ExplorerPanelProps } from './contract/slots.ts'
+import type { ExplorerEntry, ExplorerPanelProps } from './contract/slots.ts'
 import css from './ExplorerPanel.module.css'
 
 /** Per-depth row indent (px); depth 0 rows sit at the base inset. */
@@ -33,7 +33,7 @@ const INDENT_STEP_PX = 12
 /** Snapshot of the viewing-store fields the tree reads (PropsStore share state). */
 type ExplorerView = {
   expansion: Record<string, boolean>
-  childrenByPath: Record<string, DirectoryEntry[]>
+  childrenByPath: Record<string, ExplorerEntry[]>
   loadingPaths: string[]
   errorByPath: Record<string, string>
   truncatedByPath: Record<string, boolean>

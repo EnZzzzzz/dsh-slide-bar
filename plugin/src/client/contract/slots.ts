@@ -11,7 +11,6 @@ import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-cli
 // Type-only: pulls ui-sidebar's SlotMap merges (the 'sidebar.activity' and
 // 'sidebar.panel' entries) into every program that sees this contract.
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import type { DirectoryListing } from '@deepseek-ai/dsh-client-runtime/client'
 import type { createExplorerStore } from '../stores.ts'
 import type { ExplorerKey } from '../locales.ts'
 
@@ -20,6 +19,53 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     /** File explorer panel copy. */
     explorer: ExplorerKey
   }
+}
+
+/**
+ * One file-tree row: an absolute path plus its kind. The file tree is driven
+ * by the host fileReferences Remote (relative path + kind, files included),
+ * because ctx.workspaces.listDirectory returns directories only and no kind.
+ */
+export type ExplorerEntry = {
+  /** Base name shown in a browser row. */
+  name: string
+  /** Absolute host path. */
+  path: string
+  /** Directory or file; drives the tree's expand/open split. */
+  kind: 'file' | 'directory'
+  /** Hidden by the host platform's convention (dot-prefixed on POSIX). */
+  hidden: boolean
+}
+
+/** One listed level: the absolute directory listed plus its entries. */
+export type ExplorerListing = {
+  /** Absolute path of the listed directory. */
+  path: string
+  /** The level's child rows (directories and files). */
+  entries: ExplorerEntry[]
+  /** True when the host cut the level at its result bound. */
+  truncated: boolean
+}
+
+/** One fileReference candidate row (relative path + kind). */
+export type FileReferenceCandidate = {
+  /** Path relative to the session cwd ('' = root; sub paths have no leading slash). */
+  path: string
+  kind: 'file' | 'directory'
+}
+
+/**
+ * Minimal typed face of the host fileReferences Remote this plugin drives.
+ * The full face is merged into ctx.remote by the dsh-file-reference package;
+ * the plugin only needs list() and declares its own narrow contract instead
+ * of depending on that package's generated types.
+ */
+export type FileReferencesRemote = {
+  list: (
+    sessionId: string,
+    query: string,
+    signal?: AbortSignal,
+  ) => Promise<{ ok: true; value: FileReferenceCandidate[] } | { ok: false; error: { message?: string } }>
 }
 
 /**
@@ -41,12 +87,12 @@ export type ExplorerPanelInjected = {
   /** This registration's panel id (self-gating compares it to activePanelId). */
   panelId: 'explorer'
   /**
-   * List one directory level, files included.
+   * List one directory level (absolute path), files included.
    * @param path - absolute directory to list.
    * @param signal - aborts the wire request when the caller supersedes it.
-   * @returns the level's listing (entries sorted by the Host: directories first).
+   * @returns the level's listing with kind-carrying entries.
    */
-  listDirectory: (path: string, signal: AbortSignal) => Promise<DirectoryListing>
+  listDirectory: (path: string, signal: AbortSignal) => Promise<ExplorerListing>
   /**
    * Open a filesystem path with the Host operating system's default application.
    * @param path - absolute host path.

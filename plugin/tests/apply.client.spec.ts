@@ -19,7 +19,13 @@ import { WorkspaceBrowser } from '../src/client/workspace/WorkspaceBrowser.tsx'
 // the shipped Chinese copy, so they state the browser they assume.
 usePinnedBrowserLanguages('zh-CN')
 
-async function bench() {
+/** Optional per-bench service overrides (the apply closes over them lazily). */
+type BenchOptions = {
+  sessions?: Record<string, unknown>
+  remote?: Record<string, unknown>
+}
+
+async function bench(options: BenchOptions = {}) {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry).await()
   const listDirectory = vi.fn(async (): Promise<DirectoryListing> => ({
@@ -33,7 +39,14 @@ async function bench() {
     searchResultLimit: 20,
     binding: vi.fn(() => undefined),
     fork: vi.fn(async () => 'child-id'),
+    list: {
+      getSnapshot: () => ({ current: undefined, byId: {}, ids: [], phase: 'ready' }),
+    },
+    ...options.sessions,
   } as never)
+  // The explorer panel lists through the host fileReferences Remote; the apply
+  // only closes over it (no eager call), so an absent/mock service is fine.
+  ctx.provide('remote', options.remote ?? {} as never)
   const locale = new LocaleRuntime(ctx)
   ctx.provide('locale', locale)
   return { ctx, slots: ctx.get('slots') as SlotRegistry, locale, listDirectory, openPath }
@@ -57,7 +70,7 @@ function byId(entries: ReturnType<SlotRegistry['entries']>, id: string) {
 
 describe('dsh-slide-bar apply', () => {
   it('declares the services it drives', () => {
-    expect(inject).toEqual(['slots', 'sessions', 'workspaces', 'locale'])
+    expect(inject).toEqual(['slots', 'sessions', 'workspaces', 'locale', 'remote'])
   })
 
   it('registers explorer and sessions entries for declarations arriving before or after apply', async () => {
@@ -91,7 +104,17 @@ describe('dsh-slide-bar apply', () => {
   })
 
   it('routes the explorer inject faces to the workspaces service', async () => {
-    const b = await bench()
+    const fileReferences = { list: vi.fn(async () => ({ ok: true, value: [{ path: 'a.ts', kind: 'file' }] })) }
+    const b = await bench({
+      sessions: {
+        list: {
+          getSnapshot: () => ({
+            current: 's-1', byId: { 's-1': { cwd: '/repo' } }, ids: ['s-1'], phase: 'ready',
+          }),
+        },
+      },
+      remote: { fileReferences },
+    })
     declare(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
 
@@ -101,9 +124,13 @@ describe('dsh-slide-bar apply', () => {
     const panel = (byId(b.slots.entries('sidebar.panel'), 'explorer')!.inject as () => ExplorerPanelInjected)()
     expect(panel.panelId).toBe('explorer')
     const signal = new AbortController().signal
-    await panel.listDirectory('/repo/src', signal)
-    // The tree lists files too: the wrapper fixes includeFiles on every call.
-    expect(b.listDirectory).toHaveBeenCalledWith('/repo/src', { includeFiles: true }, signal)
+    const listing = await panel.listDirectory('/repo', signal)
+    // The tree lists files too: the wrapper resolves absolute paths + kind
+    // through the host fileReferences Remote (relative to the session cwd).
+    expect(fileReferences.list).toHaveBeenCalledWith('s-1', '', signal)
+    expect(listing.entries).toEqual([
+      { name: 'a.ts', path: '/repo/a.ts', kind: 'file', hidden: false },
+    ])
     await panel.openPath('/repo/a.ts')
     expect(b.openPath).toHaveBeenCalledWith('/repo/a.ts')
   })

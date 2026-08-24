@@ -20,6 +20,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ExplorerActivityInjected, ExplorerPanelInjected } from './contract/slots.ts'
+import type { FileReferencesRemote } from './contract/slots.ts'
 import { createExplorerStore } from './stores.ts'
 import { ExplorerActivityIcon } from './ExplorerActivityIcon.tsx'
 import { ExplorerPanel } from './ExplorerPanel.tsx'
@@ -48,7 +49,19 @@ const EXPLORER_PANEL_ID = 'explorer'
 const SESSIONS_PANEL_ID = 'sessions'
 
 /** Services required by this plugin. */
-export const inject = ['slots', 'sessions', 'workspaces', 'locale']
+export const inject = ['slots', 'sessions', 'workspaces', 'locale', 'remote']
+
+/**
+ * Join a relative fileReferences path onto the cwd root ('' = the root
+ * itself). Mirrors the packaged explorer's joinAbs.
+ * @param root - absolute cwd root.
+ * @param rel - relative path from fileReferences ('' or a sub path).
+ * @returns the absolute path.
+ */
+function joinAbs(root: string | undefined, rel: string): string {
+  if (typeof rel !== 'string' || rel === '') return root || ''
+  return (root || '').replace(/[/\\]+$/, '') + '/' + rel
+}
 
 /**
  * Register the activity icons and panels once their slot declarations are on
@@ -68,6 +81,51 @@ export function apply(ctx: ClientContext): void {
     getSnapshot: () => ctx.slots.entries('sidebar.panel.sessions.directoryFlow').length > 0,
     subscribe: listener => ctx.slots.subscribe('sidebar.panel.sessions.directoryFlow', listener),
   }))()
+
+  // Explorer directory listing over the host fileReferences Remote (relative
+  // paths + kind, files included) — the same data source the packaged sidebar
+  // uses. ctx.workspaces.listDirectory returns no `kind` and directories
+  // only, so it cannot drive a file tree; passing an options bag there also
+  // landed in the signal slot and crashed AbortSignal.any in the RPC layer.
+  const explorerListDirectory = async (path: string, signal: AbortSignal): Promise<{
+    path: string
+    entries: Array<{ name: string; path: string; kind: 'file' | 'directory'; hidden: boolean }>
+    truncated: boolean
+  }> => {
+    const remote = ctx.get('remote') as { fileReferences?: FileReferencesRemote } | undefined
+    if (!remote || !remote.fileReferences || typeof remote.fileReferences.list !== 'function') {
+      throw new Error('文件引用服务不可用')
+    }
+    const sessionsSvc = ctx.get('sessions')
+    const snapshot = sessionsSvc && typeof sessionsSvc.list?.getSnapshot === 'function'
+      ? sessionsSvc.list.getSnapshot()
+      : undefined
+    const sessionId = snapshot && typeof snapshot.current === 'string' ? snapshot.current : undefined
+    const cwd = sessionId === undefined || !snapshot || !snapshot.byId[sessionId]
+      ? undefined
+      : snapshot.byId[sessionId].cwd
+    if (cwd === undefined) throw new Error('没有可用的会话工作目录')
+    if (sessionId === undefined) throw new Error('没有可用的会话')
+    const rel = path === cwd ? '' : (path.startsWith(cwd + '/') ? path.slice(cwd.length + 1) : path)
+    const query = rel === '' ? '' : rel + '/'
+    const result = await remote.fileReferences.list(sessionId, query, signal)
+    if (signal && signal.aborted) throw new Error('已取消')
+    if (!result || result.ok !== true) {
+      const msg = result && result.error ? (result.error.message || String(result.error)) : '目录读取失败'
+      throw new Error(msg)
+    }
+    const items = result.value || []
+    return {
+      path: path || cwd,
+      truncated: false,
+      entries: items.map((c: { path: string; kind: 'file' | 'directory' }) => ({
+        name: c.path.slice(c.path.lastIndexOf('/') + 1),
+        path: joinAbs(cwd, c.path),
+        kind: c.kind,
+        hidden: false,
+      })),
+    }
+  }
 
   const sessionsInjected = (): WorkspaceBrowserInjected => ({
     startSession: (workspaceId) => { ctx.workspaces.startSession(workspaceId) },
@@ -123,7 +181,7 @@ export function apply(ctx: ClientContext): void {
       locale: NS,
       inject: (): ExplorerPanelInjected => ({
         panelId: EXPLORER_PANEL_ID,
-        listDirectory: (path, signal) => ctx.workspaces.listDirectory(path, { includeFiles: true }, signal),
+        listDirectory: explorerListDirectory,
         openPath: path => ctx.workspaces.openPath(path),
       }),
     },
