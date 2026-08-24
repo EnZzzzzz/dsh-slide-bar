@@ -1,68 +1,159 @@
 /**
- * File explorer plugin, browser half. Two registrations into the sidebar
- * shell's activity-bar holes: ExplorerActivityIcon fills `sidebar.activity`
- * (selecting panel id 'explorer'), ExplorerPanel fills `sidebar.panel` (the
- * self-gated file tree). Both slots are declared by ui-sidebar's apply, whose
- * activation order relative to this one is NOT constrained: dsh.client.inject
- * edges are informational (loading/prefetch metadata, never apply sequencing),
- * so registration follows each declaration through `slots.inject()`. Export
- * discipline: packages/client/AGENTS.md.
+ * File explorer + inherited sessions panel plugin, browser half.
+ *
+ * Two panel groups register into the sidebar shell's activity-bar holes
+ * (sidebar.activity / sidebar.panel, declared by the shell's sidebar entry):
+ *
+ * - explorer: ExplorerActivityIcon + ExplorerPanel (the self-gated file tree).
+ * - sessions: SessionsActivityIcon + SessionsPanelHost, which renders the
+ *   workspace browser FORKED from @deepseek-ai/dsh-client-ui-workspace (the
+ *   original dsh session panel: search, grouped/flat list, drag reorder,
+ *   workspace/session rename, fork, archive, and — fork-added — 「复制路径」on
+ *   folder rows). See plugin/README.md「继承原版会话面板」.
+ *
+ * Both target slots are declared by the shell; activation order relative to
+ * this package is NOT constrained, so registration follows each declaration
+ * through `slots.inject()`.
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ExplorerActivityInjected, ExplorerPanelInjected } from './contract/slots.ts'
 import { createExplorerStore } from './stores.ts'
 import { ExplorerActivityIcon } from './ExplorerActivityIcon.tsx'
 import { ExplorerPanel } from './ExplorerPanel.tsx'
 import { en, zh } from './locales.ts'
+// Inherited original session panel (fork of @deepseek-ai/dsh-client-ui-workspace).
+import type { WorkspaceBrowserInjected } from './workspace/contract/slots.ts'
+import { createWorkspaceViewStore } from './workspace/stores.ts'
+import { en as workspaceEn, zh as workspaceZh } from './workspace/locales.ts'
+import { SessionsActivityIcon } from './sessions/SessionsActivityIcon.tsx'
+import type { SidebarActivityInjected } from './sessions/contract.ts'
+import { SessionsPanelHost } from './sessions/SessionsPanelHost.tsx'
 
 export type {
   ExplorerActivityIconProps, ExplorerActivityInjected, ExplorerPanelInjected, ExplorerPanelProps,
 } from './contract/slots.ts'
 export type { ExplorerKey } from './locales.ts'
 
-/** Dictionary namespace owned by this plugin. */
+/** Dictionary namespace owned by this package for the explorer panel. */
 const NS = 'explorer'
+/** Dictionary namespace owned by this package for the inherited sessions panel. */
+const SESSIONS_NS = 'sidebar.sessions'
 
-/** The panel id both registrations carry (the `sidebar.panel` entry id IS the panel id). */
-const PANEL_ID = 'explorer'
+/** The explorer panel id both explorer registrations carry. */
+const EXPLORER_PANEL_ID = 'explorer'
+/** The sessions panel id both sessions registrations carry. */
+const SESSIONS_PANEL_ID = 'sessions'
 
-/** Services required by the explorer plugin. */
-export const inject = ['slots', 'workspaces', 'locale']
+/** Services required by this plugin. */
+export const inject = ['slots', 'sessions', 'workspaces', 'locale']
 
 /**
- * Register the activity icon and the panel once their slot declarations are
- * on the ledger. Inject factories return plain data and callbacks; the
- * listing wrapper fixes `includeFiles: true` so the tree shows files.
+ * Register the activity icons and panels once their slot declarations are on
+ * the ledger. The explorer listing wrapper fixes `includeFiles: true`; the
+ * sessions inject face mirrors the original ui-workspace apply (thin
+ * ctx.sessions / ctx.workspaces closures).
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-explorer: dictionaries')
+  ctx.effect(() => ctx.locale.register(SESSIONS_NS, { zh: workspaceZh, en: workspaceEn }), 'ui-sessions: dictionaries')
+
+  // Occupancy source for the sessions panel's directory-flow hole: true while
+  // the fork's own directory-flow slot holds an entry (same shape as the
+  // original browserInjected flowSource).
+  const sessionsFlowSource = ((): HostObservable<boolean> => ({
+    getSnapshot: () => ctx.slots.entries('sidebar.panel.sessions.directoryFlow').length > 0,
+    subscribe: listener => ctx.slots.subscribe('sidebar.panel.sessions.directoryFlow', listener),
+  }))()
+
+  const sessionsInjected = (): WorkspaceBrowserInjected => ({
+    startSession: (workspaceId) => { ctx.workspaces.startSession(workspaceId) },
+    open: (sessionId) => { ctx.sessions.open(sessionId) },
+    searchSessions: async (query, signal) => {
+      const result = await ctx.sessions.search(query, signal)
+      if (!result.ok) throw new Error(result.error.message)
+      return result.value
+    },
+    searchResultLimit: ctx.sessions.searchResultLimit,
+    renameSession: async (sessionId, title) => {
+      const session = ctx.sessions.binding(sessionId)?.session
+      if (session === undefined) throw new Error(`unknown session "${sessionId}"`)
+      const result = await session.rename(title)
+      if (!result.ok) throw new Error(result.error.message)
+    },
+    forkSession: (sessionId) => {
+      ctx.sessions.fork({ sessionId, increaseTitle: true })
+        .then((childId) => { ctx.sessions.open(childId) })
+        .catch(() => {
+          // Fork or child-rename failure keeps the current selection.
+        })
+    },
+    renameWorkspace: async (workspaceId, title) => { await ctx.workspaces.rename(workspaceId, title) },
+    deleteWorkspace: async (workspaceId) => { await ctx.workspaces.delete(workspaceId) },
+    insertWorkspaceBefore: async (workspaceId, beforeWorkspaceId) => {
+      await ctx.workspaces.insertBefore(workspaceId, beforeWorkspaceId)
+    },
+    archiveSession: async (sessionId) => { await ctx.workspaces.archiveSession(sessionId) },
+    insertSessionBefore: async (workspaceId, sessionId, beforeSessionId) => {
+      await ctx.workspaces.insertSessionBefore(workspaceId, sessionId, beforeSessionId)
+    },
+    createWorkspace: input => ctx.workspaces.create(input),
+    hooks: { directoryFlow: sessionsFlowSource },
+  })
 
   ctx.slots.inject('sidebar.activity', () => ctx.slots.register(
     {
       name: 'sidebar.activity',
-      id: PANEL_ID,
+      id: EXPLORER_PANEL_ID,
       order: 10,
       locale: NS,
-      inject: (): ExplorerActivityInjected => ({ panelId: PANEL_ID }),
+      inject: (): ExplorerActivityInjected => ({ panelId: EXPLORER_PANEL_ID }),
     },
     ExplorerActivityIcon,
   ))
   ctx.slots.inject('sidebar.panel', () => ctx.slots.register(
     {
       name: 'sidebar.panel',
-      id: PANEL_ID,
+      id: EXPLORER_PANEL_ID,
       order: 10,
       store: createExplorerStore(),
       locale: NS,
       inject: (): ExplorerPanelInjected => ({
-        panelId: PANEL_ID,
+        panelId: EXPLORER_PANEL_ID,
         listDirectory: (path, signal) => ctx.workspaces.listDirectory(path, { includeFiles: true }, signal),
         openPath: path => ctx.workspaces.openPath(path),
       }),
     },
     ExplorerPanel,
+  ))
+
+  ctx.slots.inject('sidebar.activity', () => ctx.slots.register(
+    {
+      name: 'sidebar.activity',
+      id: SESSIONS_PANEL_ID,
+      order: 1,
+      priority: -2,
+      locale: SESSIONS_NS,
+      inject: (): SidebarActivityInjected => ({ panelId: SESSIONS_PANEL_ID }),
+    },
+    SessionsActivityIcon,
+  ))
+  ctx.slots.inject('sidebar.panel', () => ctx.slots.register(
+    {
+      name: 'sidebar.panel',
+      id: SESSIONS_PANEL_ID,
+      order: 1,
+      priority: -2,
+      children: {
+        'sidebar.panel.sessions.directoryFlow': { kind: 'single', scope: 'root' },
+      },
+      store: createWorkspaceViewStore(),
+      locale: SESSIONS_NS,
+      inject: sessionsInjected,
+    },
+    SessionsPanelHost,
   ))
 }

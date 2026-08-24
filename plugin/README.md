@@ -1,14 +1,24 @@
 # dsh-slide-bar
 
-dsh Web UI 插件：VSCode 式左侧边栏「资源管理器」文件树面板。它向 dsh 的侧边栏外壳（`@deepseek-ai/dsh-client-ui-sidebar` 提供的 `sidebar.activity` + `sidebar.panel` 槽位）注册两个条目：活动栏上的一个文件夹图标（面板 id `explorer`）和自门控的文件树面板。两个目标槽位都由 ui-sidebar 的 apply 声明，因此本插件通过 `slots.inject()` 跟随每次声明生命周期注册，重声明后自动重注册。
+dsh Web UI 插件：VSCode 式左侧边栏，含「会话」面板（**继承 dsh 原版会话管理面板**）与「资源管理器」文件树面板。它向侧边栏外壳（`sidebar.activity` + `sidebar.panel` 槽位）注册两对条目：聊天图标 + 原版会话面板（id `sessions`），文件夹图标 + 文件树面板（id `explorer`）。两个目标槽位由外壳的 apply 声明，因此本插件通过 `slots.inject()` 跟随每次声明生命周期注册，重声明后自动重注册。
 
 ## 功能
 
+- **继承原版会话面板（fork 自 `@deepseek-ai/dsh-client-ui-workspace`）**：搜索、工作区分组 / 单列视图、拖拽排序、工作区 / 会话重命名、右键菜单（分叉会话 / 归档会话 / 重命名 / 删除工作区），并在工作区（文件夹）右键菜单上扩展了「**复制路径**」（复制该文件夹的绝对路径）。会话面板按工作区分组展示，未分组会话归入「未分组」。
 - **文件树浏览**：以当前会话记录的工作目录（`cwd`）为根，无会话时回退到最近工作区的路径；两者都没有时显示空状态提示。
 - **按需加载**：每展开一个目录才调用一次 `ctx.workspaces.listDirectory(path, { includeFiles: true })`，只拉取该层；每个路径最多一个在途请求，被取代/折叠/刷新/卸载时通过 `AbortController` 取消。
 - **持久化视图状态**：展开状态、单层列表缓存、截断标记、隐藏文件开关保存在 localStorage（`dsh.explorer.view.v1`），重载后恢复；失败的层显示内联「重试」，不会在每次渲染时自动重试。
 - **只读操作**：文件行点击调用 `ctx.workspaces.openPath` 用系统默认程序打开；不提供新建/重命名/删除等写操作。
-- **双语界面**：中文 / 英文词典（`explorer` 命名空间）。
+- **双语界面**：中文 / 英文词典（`explorer` 与 `sidebar.sessions` 命名空间）。
+
+## 继承原版会话面板（src/client/workspace/）
+
+`src/client/workspace/` 是 `@deepseek-ai/dsh-client-ui-workspace` 的 MIT 源码 fork（`WorkspaceBrowser.tsx`、`tree.ts`、`stores.ts`、`locales.ts`、`WorkspacePicker.tsx`、`rows/Rows.tsx` 及三个 CSS Module），文件头均注明来源。改动点：
+
+1. **注册目标改为 `sidebar.panel`（id `sessions`）**：原版注册进 `sidebar.workspaces` 单槽位；本插件经 `SessionsPanelHost` 适配外壳的 `sidebar.panel` list 槽位（owner 含 `activePanelId`），按 `activePanelId === 'sessions'` 自门控。所有原版功能（搜索 / 分组 / 拖拽 / 重命名 / 分叉 / 归档）原样保留。
+2. **目录流槽位改名**：`sidebar.workspaces.directoryFlow` → `sidebar.panel.sessions.directoryFlow`（原 key 已被内置 ui-workspace 声明，声明即占有，不能重声明）。
+3. **词典命名空间**：`workspace` → `sidebar.sessions`（内置 ui-workspace 已注册 `workspace` zh/en，locale 服务拒绝重复 (ns, locale)，fork 必须用自己的命名空间）。
+4. **工作区行右键菜单新增「复制路径」**（`menu.copyPath` + `copyPath` action → `writeClipboard(group.cwd)`）。
 
 ## 安装
 
@@ -34,7 +44,7 @@ pnpm dsh plugin --profile web add link:/path/to/dsh-slide-bar/plugin
 ```sh
 pnpm install          # 链接 dsh 仓库的接口包（link: devDependencies）并安装工具链
 pnpm run bundle       # tsc 产出 lib/types，tsdown 产出 lib/index.js、lib/invariant.js、lib/client.js
-pnpm vitest run       # 35 个单元测试（jsdom 由各 spec 首行 pragma 指定）
+pnpm vitest run       # 36 个单元测试（jsdom 由各 spec 首行 pragma 指定）
 pnpm run typecheck    # 仅类型检查
 ```
 

@@ -66,7 +66,8 @@
     "react-dom": "link:/Volumes/DataDrive/proj/public/deepseek-harness/packages/client/ui-primitives/node_modules/react-dom",
     "tsdown": "^0.22.2",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "@deepseek-ai/dsh-client-ui-conversation": "link:/Volumes/DataDrive/proj/public/deepseek-harness/packages/client/ui-conversation"
   },
   "files": [
     "lib",
