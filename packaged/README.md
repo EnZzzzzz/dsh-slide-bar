@@ -44,6 +44,6 @@ node smoke.mjs          # 冒烟测试
 
 - **重启后生效**：web-app 在启动时扫描 profile bundles；本次会话里的动态插件 `slide-1` 会在重启后消失（进程级），由本包接管侧边栏。
 - profile 里原有的 `dsh-slide-bar`（原 TS 包）保持安装；它的 `slots.inject('sidebar.activity'/'sidebar.panel')` 会在本包声明槽位后注册同 id 的 explorer（priority 0），被本包（priority −1）影子掉，不产生冲突；如不需要可自行从 profile 移除。
-- **会话面板由 `dsh-slide-bar` 继承原版 `ui-workspace` 后接管**：当 `dsh-slide-bar` 更新到含「继承原版会话面板」的版本后，它的 sessions 面板注册为 priority −2（低者胜出），会影子掉本包的轻量会话面板（−1），呈现完整原版功能（搜索 / 分组 / 拖拽 / 重命名 / 分叉 / 归档 / 文件夹复制路径）；本包的 sessions 面板成为不活跃的影子条目。若不想用继承版，把 `dsh-slide-bar` 从 profile 移除即可回到本包的轻量版。
+- **已从 profile 移除 `dsh-slide-bar`（TS 包）**：它的 explorer（order 10）与资源管理器抢占 `sidebar.panel` 槽位且无预览拦截，曾导致双击文件直接走系统打开。侧边栏面板现由本包独占（会话轻量面板 + 预览版资源管理器）。如要恢复原版完整会话面板，需先移除 TS 包里的 explorer 注册再重新加入。
 - 树根仅支持当前会话 cwd；无当前会话时显示空态提示。
 - 目录数据经 `fileReferences.list` 有 `maxResults` 上界，超出会截断并显示「仅显示部分内容」。

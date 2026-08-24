@@ -76,6 +76,12 @@ const ICONS = {
   panelLeft: 'M6 2.5 H4.5 A1.5 1.5 0 0 0 3 4 V12 A1.5 1.5 0 0 0 4.5 13.5 H6 Z M6 2.5 V13.5 M13.5 2.5 H11.5 V13.5 H13.5 Z',
   chat: 'M2.5 4 A1.5 1.5 0 0 1 4 2.5 H12 A1.5 1.5 0 0 1 13.5 4 V9 A1.5 1.5 0 0 1 12 10.5 H7 L4 13.5 V10.5 H4 A1.5 1.5 0 0 1 2.5 9 Z',
   plus: 'M8 3 V13 M3 8 H13',
+  globe: 'M8 2 A6 6 0 1 1 8 14 A6 6 0 0 1 8 2 Z M2.5 8 H13.5 M8 2 C10 4.5 10 11.5 8 14 C6 11.5 6 4.5 8 2 Z',
+  back: 'M9.5 3.5 L5 8 L9.5 12.5',
+  forward: 'M6.5 3.5 L11 8 L6.5 12.5',
+  reload: 'M13.5 8 A5.5 5.5 0 1 1 11 4.3 M13.5 3 V5.5 H11',
+  stop: 'M5 5 L11 11 M11 5 L5 11',
+  x: 'M4 4 L12 12 M12 4 L4 12',
 }
 
 const CSS = `
@@ -126,11 +132,96 @@ const CSS = `
 .dshsb-menu{position:fixed;z-index:10000;min-width:160px;padding:4px;border-radius:8px;background:var(--dsw-alias-bg-overlay);border:1px solid var(--dsw-alias-border-l1);box-shadow:0 6px 20px rgba(0,0,0,.18);font-size:13px;color:var(--dsw-alias-label-primary)}
 .dshsb-menu-item{display:flex;align-items:center;gap:8px;width:100%;padding:6px 10px;border:none;border-radius:6px;background:transparent;cursor:pointer;color:var(--dsw-alias-label-secondary);text-align:left;font-size:13px;font-family:inherit}
 .dshsb-menu-item:hover{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}
+.dshsb-hint{flex:none;padding:3px 10px 6px;font-size:12px;color:var(--dsw-alias-state-warn-primary)}
+.dshpv-root{flex:1;min-height:0;display:flex;flex-direction:column;box-sizing:border-box;background:var(--dsw-alias-bg-base)}
+.dshpv-modetabs{flex:none;display:flex;align-items:center;gap:2px;padding:6px 10px;border-bottom:1px solid var(--dsw-alias-border-l1);box-sizing:border-box}
+.dshpv-modetab{flex:none;display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px;border:none;border-radius:7px;background:transparent;cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:12.5px;font-family:inherit}
+.dshpv-modetab:hover{background:var(--dsw-alias-bg-layer-1)}
+.dshpv-modetab-active,.dshpv-modetab-active:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
+.dshpv-modetitle{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:right;font-size:12px;color:var(--dsw-alias-label-secondary);opacity:.7;padding:0 4px}
+.dshpv-status{display:flex;align-items:center;gap:8px;padding:14px 16px;color:var(--dsw-alias-label-secondary);font-size:13px}
+.dshpv-error{color:var(--dsw-alias-state-error-primary);overflow-wrap:break-word}
+.dshpv-empty{padding:40px 20px;text-align:center;color:var(--dsw-alias-label-secondary);font-size:13px}
+.dshpv-emptyhint{margin-top:6px;font-size:12px;opacity:.7}
+.dshpv-imgwrap{flex:1;min-height:0;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:16px;box-sizing:border-box}
+.dshpv-img{max-width:100%;max-height:100%;object-fit:contain;border-radius:6px}
+.dshpv-textwrap{flex:1;min-height:0;overflow:auto;box-sizing:border-box}
+.dshpv-pre{margin:0;padding:16px;font-family:var(--ds-font-family-code);font-size:12.5px;line-height:1.6;color:var(--dsw-alias-label-primary);white-space:pre-wrap;word-break:break-word}
+.dshpv-md{padding:12px 20px 24px;font-size:13.5px;line-height:1.7;color:var(--dsw-alias-label-primary)}
+.dshpv-md h1,.dshpv-md h2,.dshpv-md h3,.dshpv-md h4,.dshpv-md h5,.dshpv-md h6{margin:1em 0 .5em;line-height:1.3;color:var(--dsw-alias-label-primary)}
+.dshpv-md h1{font-size:1.5em}.dshpv-md h2{font-size:1.3em}.dshpv-md h3{font-size:1.15em}
+.dshpv-md p{margin:.6em 0}
+.dshpv-md a{color:var(--dsw-alias-brand-primary)}
+.dshpv-md code{font-family:var(--ds-font-family-code);font-size:.92em;background:var(--dsw-alias-bg-layer-1);padding:2px 5px;border-radius:5px}
+.dshpv-md pre{background:var(--dsw-alias-bg-layer-1);border-radius:10px;padding:12px 14px;overflow-x:auto;margin:.8em 0}
+.dshpv-md pre code{background:transparent;padding:0;font-size:12.5px;line-height:1.55;white-space:pre}
+.dshpv-md ul,.dshpv-md ol{padding-left:1.6em;margin:.6em 0}
+.dshpv-md li{margin:.25em 0}
+.dshpv-md blockquote{margin:.8em 0;padding:.2em 1em;border-left:3px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary)}
+.dshpv-md hr{border:none;border-top:1px solid var(--dsw-alias-border-l1);margin:1.2em 0}
+.dshpv-md table{border-collapse:collapse;margin:.8em 0;font-size:13px}
+.dshpv-md th,.dshpv-md td{border:1px solid var(--dsw-alias-border-l1);padding:6px 10px;text-align:left}
+.dshpv-md th{background:var(--dsw-alias-bg-layer-1)}
+.dshpv-headerbtn{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:none;border-radius:50%;background:transparent;cursor:pointer;color:var(--dsw-alias-label-secondary)}
+.dshpv-headerbtn:hover{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}
+.dshbr-btn{display:flex;align-items:center;justify-content:center;flex:none;border:none;background:transparent;cursor:pointer;padding:4px;border-radius:50%;color:inherit;opacity:.85;transition:background-color 120ms ease,opacity 120ms ease}
+.dshbr-btn:hover:not(:disabled){background:rgba(77,107,254,.06);opacity:1}
+.dshbr-btn:disabled{opacity:.35;cursor:default}
+.dshbr-tab{display:flex;align-items:center;gap:6px;box-sizing:border-box;flex:1 1 auto;min-width:88px;max-width:132px;overflow:hidden;padding:3px 6px 3px 10px;border:1px solid rgba(127,127,127,.3);border-radius:9px;background:var(--dsw-alias-bg-base);box-shadow:0 1px 2px rgba(0,0,0,.05);cursor:pointer;color:inherit;font-size:12.5px;transition:background-color 120ms ease,box-shadow 120ms ease,border-color 120ms ease,max-width 240ms ease-in-out;user-select:none}
+.dshbr-tab:hover{background:rgba(77,107,254,.06)}
+.dshbr-tab.active{border-color:rgba(127,127,127,.45);box-shadow:0 1px 3px rgba(0,0,0,.09)}
+.dshbr-tab.editing{cursor:text;flex-basis:220px;max-width:260px}
+.dshbr-tab-title{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;opacity:.55;transition:opacity 120ms ease}
+.dshbr-tab:hover .dshbr-tab-title{opacity:.85}
+.dshbr-tab.active .dshbr-tab-title,.dshbr-tab.active:hover .dshbr-tab-title{opacity:1}
+.dshbr-tab-input{flex:1;min-width:60px;border:none;outline:none;background:transparent;color:inherit;font:inherit;padding:0}
+.dshbr-tab .dshbr-btn{padding:2px}
+.dshbr-tab:not(.active):not(:hover) .dshbr-btn{opacity:.5}
 `
 
 function joinAbs(root, rel) {
   if (typeof rel !== 'string' || rel === '') return root || ''
   return (root || '').replace(/[/\\]+$/, '') + '/' + rel
+}
+
+// ---- preview feature: loopback RPC to the host half ----
+// The host half registers the `/preview-fs` channel (connection.rpc.handle);
+// the browser half calls it with plain fetch using the same message shape as
+// the connection rpc caller (createWebConnectionRpc), so no typert codegen is
+// needed. `full.result` is the host handler's return value verbatim.
+let rpcSeq = 0
+function rpcCall(endpoint, payload) {
+  const rpcId = 'pv' + (++rpcSeq) + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+  return fetch('/preview-fs/' + endpoint, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ type: 'client-request', rpcId, method: endpoint, payload: payload || {} }),
+  }).then((res) => {
+    if (!res.ok) throw new Error('preview rpc transport: HTTP ' + res.status)
+    return res.json()
+  }).then((full) => {
+    if (!full || full.rpcId !== rpcId) throw new Error('preview rpc id mismatch')
+    return full.result
+  })
+}
+
+// ---- previewable file detection (mirrors the host half's tables) ----
+const PREVIEW_TEXT_EXT = {
+  md: 1, markdown: 1, mdx: 1, yaml: 1, yml: 1, json: 1, toml: 1,
+  txt: 1, text: 1, log: 1, csv: 1, tsv: 1, ini: 1, conf: 1, cfg: 1, env: 1,
+  lock: 1, gitignore: 1, editorconfig: 1, dockerfile: 1, makefile: 1,
+  ts: 1, tsx: 1, js: 1, jsx: 1, mjs: 1, cjs: 1, py: 1, rb: 1, go: 1, rs: 1,
+  java: 1, kt: 1, swift: 1, c: 1, h: 1, cpp: 1, hpp: 1, cc: 1,
+  css: 1, scss: 1, less: 1, html: 1, htm: 1, xml: 1,
+  sh: 1, bash: 1, zsh: 1, fish: 1, sql: 1, graphql: 1, proto: 1,
+  vue: 1, svelte: 1, gradle: 1,
+}
+const PREVIEW_IMG_EXT = { png: 1, jpg: 1, jpeg: 1, gif: 1, webp: 1, bmp: 1, svg: 1, ico: 1, avif: 1 }
+function previewableOf(path) {
+  const ext = (String(path).split('.').pop() || '').toLowerCase()
+  if (PREVIEW_IMG_EXT[ext] === 1) return 'image'
+  if (PREVIEW_TEXT_EXT[ext] === 1) return 'text'
+  return null
 }
 
 // ---- clipboard helpers ----
@@ -178,15 +269,21 @@ function basenamePath(path) {
 function addPathToSession(path, kind, currentId) {
   const mention = formatFileMention(path, kind)
   if (mention === undefined) return
-  const conversation = pluginCtx.get('conversation')
+  // Traversing conversation.input can hit the cordis inject guard; degrade
+  // gracefully (the menu item simply does nothing when unavailable).
+  let conversationInput = null
+  try {
+    const conversation = pluginCtx.get('conversation')
+    if (conversation && typeof conversation.input === 'object') conversationInput = conversation.input
+  } catch (e) { conversationInput = null }
   const sessionsSvc = pluginCtx.get('sessions')
-  if (!conversation || !sessionsSvc || typeof conversation.input !== 'object') return
+  if (!conversationInput || !sessionsSvc) return
   if (currentId === undefined) return
   let binding
   try { binding = sessionsSvc.binding(currentId) } catch (e) { return }
   if (!binding || !binding.ctx) return
   let input
-  try { input = conversation.input.for(binding.ctx) } catch (e) { return }
+  try { input = conversationInput.for(binding.ctx) } catch (e) { return }
   if (!input) return
 
   const snapshot = () => {
@@ -251,8 +348,15 @@ let pluginCtx = null
 const KNOWN_PANELS = ['sessions', 'explorer']
 
 // ---- sidebar shell (reshadows the layout-owned `sidebar` slot) ----
+// Shell lives in `sidebar.workspaces` (shadowing the stock workspace browser)
+// instead of replacing the whole `sidebar` column. That keeps the stock chrome
+// ui-sidebar renders around it — brand row, New Session, and crucially the
+// foot area with `sidebar.footer.action` (the Cordis approval badge) and
+// `sidebar.settings` — which a full `sidebar` shadow cannot re-declare
+// without colliding with ui-sidebar's own declarations (slot already
+// declared) and cannot render (renderSlot requires own children).
 function SidebarShell(props) {
-  const collapsed = !!props.collapsed
+  const wide = !!props.wide
   const [activePanelId, setActivePanelId] = React.useState(() => {
     const saved = readJSON('dsh.sidebar.view.v1')
     const id = saved && typeof saved.activePanelId === 'string' ? saved.activePanelId : 'sessions'
@@ -261,18 +365,10 @@ function SidebarShell(props) {
   const selectPanel = React.useCallback((id) => {
     setActivePanelId(id)
     writeJSON('dsh.sidebar.view.v1', { activePanelId: id })
-    if (collapsed && typeof props.toggleSidebar === 'function') props.toggleSidebar()
-  }, [collapsed, props.toggleSidebar])
-  const wide = !collapsed
+    if (!wide && typeof props.expandSidebar === 'function') props.expandSidebar()
+  }, [wide, props.expandSidebar])
 
   const strip = React.createElement('div', { className: 'dshsb-strip' },
-    React.createElement('button', {
-      type: 'button',
-      className: 'dshsb-icon',
-      title: collapsed ? '展开侧边栏' : '折叠侧边栏',
-      'aria-label': collapsed ? '展开侧边栏' : '折叠侧边栏',
-      onClick: props.toggleSidebar,
-    }, React.createElement(SvgIcon, { d: ICONS.panelLeft, size: wide ? 16 : 18 })),
     React.createElement('div', { className: 'dshsb-divider' }),
     props.renderSlot('sidebar.activity', { wide, activePanelId, selectPanel }),
   )
@@ -675,6 +771,16 @@ function ExplorerPanel(props) {
   if (controllersRef.current === undefined) controllersRef.current = new Map()
   const controllers = controllersRef.current
 
+  // Transient hint (e.g. "preview needs an active session"); auto-clears.
+  const [hint, setHint] = React.useState(null)
+  const hintTimerRef = React.useRef()
+  const showHint = React.useCallback((msg) => {
+    setHint(msg)
+    if (hintTimerRef.current) clearTimeout(hintTimerRef.current)
+    hintTimerRef.current = setTimeout(() => setHint(null), 4000)
+  }, [])
+  React.useEffect(() => () => { if (hintTimerRef.current) clearTimeout(hintTimerRef.current) }, [])
+
   const rootPath = React.useMemo(() => deriveRootPath(sessions), [sessions])
 
   // Relative keys would go stale across a session switch: drop the cache and
@@ -682,22 +788,31 @@ function ExplorerPanel(props) {
   const prevRoot = React.useRef(rootPath)
   React.useEffect(() => {
     if (prevRoot.current === rootPath) return
+    const previous = prevRoot.current
     prevRoot.current = rootPath
+    // The initial baseline transition (undefined -> path at first mount) is
+    // NOT a session switch: aborting would kill the very first directory
+    // fetch. Only a change between two defined roots invalidates.
+    if (previous === undefined) return
     for (const controller of controllers.values()) controller.abort()
     controllers.clear()
     dispatch({ type: 'invalidate' })
   }, [rootPath, controllers])
 
   const load = React.useCallback((relDir) => {
+    // Session snapshot not ready yet (page-load race): skip the call; when
+    // sessions.current appears, this callback identity changes and the
+    // mount effect re-fires.
+    if (sessions.current === undefined) return
     if (controllers.has(relDir)) return
     const controller = newController()
     controllers.set(relDir, controller)
     dispatch({ type: 'setLoading', path: relDir, loading: true })
     props.listDirectory(sessions.current, relDir, controller.signal).then((entries) => {
-      if (controller.signal.aborted) return
+        if (controller.signal.aborted) return
       dispatch({ type: 'setChildren', path: relDir, entries, truncated: false })
     }, (reason) => {
-      if (controller.signal.aborted) return
+        if (controller.signal.aborted) return
       dispatch({ type: 'setError', path: relDir, message: errorText(reason) })
     }).then(() => { controllers.delete(relDir) })
   }, [props, sessions.current, controllers])
@@ -723,8 +838,17 @@ function ExplorerPanel(props) {
 
   const toggle = React.useCallback((relDir, expanded) => { dispatch({ type: 'setExpanded', path: relDir, expanded }) }, [])
   const openFile = React.useCallback((relPath) => {
-    props.openPath(joinAbs(rootPath, relPath)).catch(() => {})
-  }, [props, rootPath])
+    const abs = joinAbs(rootPath, relPath)
+    const kind = previewableOf(abs)
+    if (kind !== null) {
+      previewStore.openFile(abs, kind)
+      // Blank sessions render no view tabs, so the preview view cannot be
+      // activated there — tell the user instead of failing silently.
+      if (!activatePreviewView()) showHint('预览需要先打开一个会话')
+    } else {
+      props.openPath(abs).catch(() => {})
+    }
+  }, [props, rootPath, showHint])
   const refresh = React.useCallback(() => {
     for (const controller of controllers.values()) controller.abort()
     controllers.clear()
@@ -772,6 +896,13 @@ function ExplorerPanel(props) {
     return React.createElement('div', { className: 'dshsb-panelroot' }, header,
       React.createElement('div', { className: 'dshsb-status' }, '正在加载…'))
   }
+  if (!sessions || sessions.current === undefined) {
+    // Session snapshot not ready yet (page-load race): hold the tree mount
+    // until the session baseline appears, then DirectoryChildren mounts fresh
+    // and fetches the root level.
+    return React.createElement('div', { className: 'dshsb-panelroot' }, header,
+      React.createElement('div', { className: 'dshsb-status' }, '正在加载…'))
+  }
   if (rootPath === undefined) {
     return React.createElement('div', { className: 'dshsb-panelroot' }, header,
       React.createElement('div', { className: 'dshsb-empty' },
@@ -779,9 +910,654 @@ function ExplorerPanel(props) {
         React.createElement('div', { className: 'dshsb-emptyhint' }, '打开或新建一个会话后，这里会显示其工作目录。')))
   }
   return React.createElement('div', { className: 'dshsb-panelroot' }, header,
+    hint ? React.createElement('div', { className: 'dshsb-hint', role: 'status' }, hint) : null,
     React.createElement('div', { className: 'dshsb-tree', onScroll: closeMenu },
       React.createElement(DirectoryChildren, { path: '', depth: 0, view, load, abort, toggle, openFile, onContextMenu: openMenu })),
     React.createElement(ExplorerMenu, { menu, rootPath, currentId: sessions.current, onClose: closeMenu }))
+}
+
+// ---- preview feature: session-area 预览 view (file preview + built-in browser) ----
+// Ported from the runtime-preview dynamic plugin; the browser engine mirrors
+// dsh-builtin-browser's store/controller so the agent's browser_* tools keep
+// working (window.__dshBrowser points at our controller).
+
+// --- preview store: mode 'file' | 'browser'; file = { path, name, ext, kind } ---
+let previewState = { mode: 'file', file: null }
+const previewListeners = new Set()
+function previewEmit() {
+  for (const l of previewListeners) { try { l() } catch (e) {} }
+}
+const previewStore = {
+  get() { return previewState },
+  subscribe(listener) { previewListeners.add(listener); return () => previewListeners.delete(listener) },
+  setMode(mode) {
+    if (previewState.mode === mode) return
+    previewState = Object.assign({}, previewState, { mode })
+    previewEmit()
+  },
+  openFile(path, kind) {
+    const name = basenamePath(path) || path
+    const ext = (name.split('.').pop() || '').toLowerCase()
+    previewState = { mode: 'file', file: { path, name, ext, kind } }
+    previewEmit()
+  },
+}
+
+// Switch the conversation view ring to our entry by simulating the header tab
+// click (the active view lives in the chat store's internal `view` field,
+// which has no public setter).
+function activatePreviewView() {
+  try {
+    const tabs = document.querySelectorAll('[role="tablist"] button[role="tab"]')
+    for (const b of tabs) {
+      const txt = b.textContent || ''
+      if (txt.trim() === '预览') { b.click(); return true }
+    }
+  } catch (e) { /* ignore */ }
+  return false
+}
+
+// --- built-in browser engine (ported from dsh-builtin-browser store.ts) ---
+const BLANK_PAGE = 'about:blank'
+const browserSurfaces = new Map()
+let browserNextTabId = 1
+function blankBrowserTab() { return { id: browserNextTabId++, address: '', current: '', title: '' } }
+const browserFirstTab = blankBrowserTab()
+let browserState = {
+  open: false,
+  tabs: [browserFirstTab],
+  activeTabId: browserFirstTab.id,
+  inShell: false,
+  pending: null, // { op, url } queued while the surface is unmounted
+}
+const browserListeners = new Set()
+function browserEmit() {
+  for (const l of browserListeners) { try { l() } catch (e) {} }
+}
+function browserActiveTab() {
+  return browserState.tabs.find((t) => t.id === browserState.activeTabId) || browserState.tabs[0]
+}
+function browserUpdateTab(id, patch) {
+  const tab = browserState.tabs.find((t) => t.id === id)
+  if (!tab) return
+  const next = Object.assign({}, tab, patch)
+  if (next.address === tab.address && next.current === tab.current && next.title === tab.title) return
+  browserState = Object.assign({}, browserState, { tabs: browserState.tabs.map((t) => (t.id === id ? next : t)) })
+  browserEmit()
+}
+const browserStore = {
+  get() { return browserState },
+  getActiveTab() { return browserActiveTab() },
+  subscribe(listener) { browserListeners.add(listener); return () => browserListeners.delete(listener) },
+  setOpen(open) {
+    if (browserState.open === open) return
+    browserState = Object.assign({}, browserState, { open })
+    browserEmit()
+  },
+  addTab() {
+    const tab = blankBrowserTab()
+    browserState = Object.assign({}, browserState, { tabs: browserState.tabs.concat(tab), activeTabId: tab.id })
+    browserEmit()
+    return tab.id
+  },
+  closeTab(id) {
+    browserSurfaces.delete(id)
+    let tabs = browserState.tabs.filter((t) => t.id !== id)
+    if (tabs.length === 0) tabs = [blankBrowserTab()]
+    const idx = browserState.tabs.findIndex((t) => t.id === id)
+    const activeTabId = browserState.activeTabId === id
+      ? (tabs[Math.min(idx, tabs.length - 1)] || tabs[0]).id
+      : browserState.activeTabId
+    browserState = Object.assign({}, browserState, { tabs, activeTabId })
+    browserEmit()
+  },
+  activateTab(id) {
+    if (browserState.activeTabId === id || !browserState.tabs.some((t) => t.id === id)) return
+    browserState = Object.assign({}, browserState, { activeTabId: id })
+    browserEmit()
+  },
+  setAddress(address) { browserUpdateTab(browserActiveTab().id, { address }) },
+  setCurrent(id, current) {
+    const tab = browserState.tabs.find((t) => t.id === id)
+    if (!tab) return
+    browserUpdateTab(id, { current, address: current || tab.address })
+  },
+  setTitle(id, title) { browserUpdateTab(id, { title }) },
+  setInShell(inShell) {
+    if (browserState.inShell === inShell) return
+    browserState = Object.assign({}, browserState, { inShell })
+    browserEmit()
+  },
+  setSurface(tabId, el) {
+    if (el) browserSurfaces.set(tabId, el)
+    else browserSurfaces.delete(tabId)
+  },
+  getSurface() { return browserSurfaces.get(browserActiveTab().id) || null },
+  setPendingCommand(pending) {
+    browserState = Object.assign({}, browserState, { pending })
+    browserEmit()
+  },
+  takePendingCommand() {
+    if (!browserState.pending) return null
+    const pending = browserState.pending
+    browserState = Object.assign({}, browserState, { pending: null })
+    browserEmit()
+    return pending
+  },
+}
+
+// Page-side controller the Desktop shell drives via executeJavaScript
+// (out/main/index.js forwards /browser/command here). Replaces the
+// builtin-browser bundle's controller so the agent's browser_* tools drive the
+// in-session surfaces instead of the (removed) full-screen panel.
+const CONTENT_TEXT_LIMIT = 50000
+const pageBrowserController = {
+  async command(payload) {
+    const op = payload && payload.op
+    const el = browserStore.getSurface()
+    switch (op) {
+      case 'tab-list': {
+        const st = browserStore.get()
+        return {
+          ok: true,
+          tabs: st.tabs.map((t) => ({ id: t.id, url: t.current, title: t.title, active: t.id === st.activeTabId })),
+        }
+      }
+      case 'tab-new': {
+        const id = browserStore.addTab()
+        return { ok: true, id }
+      }
+      case 'tab-close': {
+        const id = Number(payload.id)
+        if (!browserStore.get().tabs.some((t) => t.id === id)) {
+          return { ok: false, error: 'no such tab: ' + String(payload.id) }
+        }
+        browserStore.closeTab(id)
+        return { ok: true }
+      }
+      case 'tab-activate': {
+        const id = Number(payload.id)
+        if (!browserStore.get().tabs.some((t) => t.id === id)) {
+          return { ok: false, error: 'no such tab: ' + String(payload.id) }
+        }
+        browserStore.activateTab(id)
+        return { ok: true, id }
+      }
+    }
+    if (op === 'navigate') {
+      const url = String(payload.url || '')
+      if (!url) return { ok: false, error: 'navigate requires a url' }
+      previewStore.setMode('browser')
+      browserStore.setOpen(true)
+      activatePreviewView()
+      const surf = browserStore.getSurface()
+      if (!surf) {
+        browserStore.setPendingCommand({ op: 'navigate', url })
+        return { ok: true, url, title: '', pending: true }
+      }
+      if (surf.loadURL) {
+        try { await surf.loadURL(url) } catch (err) { return { ok: false, error: errorText(err) } }
+      } else {
+        surf.setAttribute('src', url)
+      }
+      browserStore.setAddress(url)
+      return { ok: true, url, title: surf.getTitle ? surf.getTitle() : '' }
+    }
+    if (!el) return { ok: false, error: '浏览器面板未挂载' }
+    switch (op) {
+      case 'back':
+        if (el.goBack) el.goBack()
+        return { ok: true, url: el.getURL ? el.getURL() : '', title: el.getTitle ? el.getTitle() : '' }
+      case 'forward':
+        if (el.goForward) el.goForward()
+        return { ok: true, url: el.getURL ? el.getURL() : '', title: el.getTitle ? el.getTitle() : '' }
+      case 'reload':
+        if (el.reload) el.reload()
+        return { ok: true }
+      case 'stop':
+        if (el.stop) el.stop()
+        return { ok: true }
+      case 'eval': {
+        const script = String(payload.script || '')
+        if (!el.executeJavaScript) return { ok: false, error: 'executeJavaScript unavailable outside the Electron shell' }
+        try {
+          const result = await el.executeJavaScript(script, true)
+          return { ok: true, result: result === undefined ? null : result }
+        } catch (err) { return { ok: false, error: errorText(err) } }
+      }
+      case 'content': {
+        if (!el.executeJavaScript) return { ok: false, error: 'executeJavaScript unavailable outside the Electron shell' }
+        try {
+          const text = await el.executeJavaScript('document.body ? document.body.innerText : ""', true)
+          const full = typeof text === 'string' ? text : ''
+          return {
+            ok: true,
+            url: el.getURL ? el.getURL() : '',
+            title: el.getTitle ? el.getTitle() : '',
+            text: full.slice(0, CONTENT_TEXT_LIMIT),
+            truncated: full.length > CONTENT_TEXT_LIMIT,
+          }
+        } catch (err) { return { ok: false, error: errorText(err) } }
+      }
+      case 'screenshot': {
+        const id = el.getWebContentsId ? el.getWebContentsId() : undefined
+        if (!id) return { ok: false, error: 'webContents id unavailable outside the Electron shell' }
+        return { ok: true, webContentsId: id }
+      }
+      default:
+        return { ok: false, error: 'unknown browser command: ' + String(op) }
+    }
+  },
+}
+
+// --- markdown renderer (dependency-free mini renderer) ---
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+function inlineMd(s) {
+  let out = escapeHtml(s)
+  out = out.replace(/`([^`]+)`/g, '<code>$1</code>')
+  out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  out = out.replace(/\*([^*]+)\*/g, '<em>$1</em>')
+  out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
+  return out
+}
+function renderMarkdown(text) {
+  const lines = String(text).split(/\r?\n/)
+  const out = []
+  let i = 0
+  let inCode = false
+  let codeBuf = []
+  const flushCode = () => {
+    if (codeBuf.length === 0) return
+    out.push('<pre><code>' + codeBuf.join('\n') + '</code></pre>')
+    codeBuf = []
+  }
+  while (i < lines.length) {
+    const line = lines[i]
+    if (!inCode && /^\s*```/.test(line)) { flushCode(); inCode = true; codeBuf = []; i++; continue }
+    if (inCode && /^\s*```/.test(line)) { flushCode(); inCode = false; i++; continue }
+    if (inCode) { codeBuf.push(line); i++; continue }
+    if (line.trim().charAt(0) === '|') {
+      const rows = []
+      while (i < lines.length && lines[i].trim().charAt(0) === '|') { rows.push(lines[i]); i++ }
+      if (rows.length >= 2) {
+        const parseRow = (r) => r.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim())
+        const head = parseRow(rows[0])
+        const sep = parseRow(rows[1])
+        const isSep = sep.length > 0 && sep.every((c) => /^:?-{3,}:?$/.test(c))
+        let html = '<table><thead><tr>' + head.map((c) => '<th>' + inlineMd(c) + '</th>').join('') + '</tr></thead><tbody>'
+        const start = isSep ? 2 : 1
+        for (let r = start; r < rows.length; r++) {
+          html += '<tr>' + parseRow(rows[r]).map((c) => '<td>' + inlineMd(c) + '</td>').join('') + '</tr>'
+        }
+        html += '</tbody></table>'
+        out.push(html)
+        continue
+      }
+    }
+    const t = line.trim()
+    if (t === '') { out.push('<p></p>'); i++; continue }
+    if (/^#{1,6}\s/.test(t)) {
+      const level = t.match(/^#+/)[0].length
+      out.push('<h' + level + '>' + inlineMd(t.replace(/^#+\s*/, '')) + '</h' + level + '>')
+    } else if (/^(-{3,}|\*{3,}|_{3,})$/.test(t)) {
+      out.push('<hr>')
+    } else if (/^>\s?/.test(t)) {
+      out.push('<blockquote>' + inlineMd(t.replace(/^>\s?/, '')) + '</blockquote>')
+    } else if (/^\s*[-*+]\s+/.test(line)) {
+      out.push('<ul>')
+      while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) {
+        out.push('<li>' + inlineMd(lines[i].replace(/^\s*[-*+]\s+/, '')) + '</li>')
+        i++
+      }
+      out.push('</ul>')
+      continue
+    } else if (/^\s*\d+[.)]\s+/.test(line)) {
+      out.push('<ol>')
+      while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i].trim())) {
+        out.push('<li>' + inlineMd(lines[i].trim().replace(/^\d+[.)]\s+/, '')) + '</li>')
+        i++
+      }
+      out.push('</ol>')
+      continue
+    } else {
+      out.push('<p>' + inlineMd(t) + '</p>')
+    }
+    i++
+  }
+  flushCode()
+  return out.join('\n')
+}
+
+// --- components ---
+function toUrl(input) {
+  const trimmed = (input || '').trim()
+  if (!trimmed) return BLANK_PAGE
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed
+  return 'https://' + trimmed
+}
+function tabLabel(tab) {
+  if (tab.title) return tab.title
+  if (tab.current) {
+    try { return new URL(tab.current).hostname } catch (e) { return tab.current }
+  }
+  return '新标签页'
+}
+function chromeUserAgent() {
+  if (typeof navigator === 'undefined') return ''
+  return navigator.userAgent.replace(/\s+Electron\/[\d.]+/, '')
+}
+
+function BrowserSurface() {
+  const [state, setState] = React.useState(browserStore.get())
+  const active = state.tabs.find((t) => t.id === state.activeTabId) || state.tabs[0]
+  const [editing, setEditing] = React.useState(null)
+  const [canGoBack, setCanGoBack] = React.useState(false)
+  const [canGoForward, setCanGoForward] = React.useState(false)
+  const [loading, setLoading] = React.useState(false)
+  const inShell = Boolean(typeof window !== 'undefined' && window.desktopBridge)
+
+  React.useEffect(() => browserStore.subscribe(() => {
+    const next = browserStore.get()
+    setState(next)
+    setEditing((cur) => (cur && !next.tabs.some((t) => t.id === cur.id) ? null : cur))
+  }), [])
+
+  const refreshNavState = React.useCallback(() => {
+    const wv = browserStore.getSurface()
+    if (!wv) { setCanGoBack(false); setCanGoForward(false); return }
+    try {
+      setCanGoBack(wv.canGoBack ? wv.canGoBack() : false)
+      setCanGoForward(wv.canGoForward ? wv.canGoForward() : false)
+      const url = wv.getURL ? wv.getURL() : ''
+      if (url && url !== BLANK_PAGE) browserStore.setCurrent(browserStore.get().activeTabId, url)
+    } catch (e) { /* webview not attached yet */ }
+  }, [])
+
+  const bindSurface = (tabId) => (el) => {
+    const wv = el
+    browserStore.setSurface(tabId, wv)
+    if (!wv) return
+    if (!wv.__dshPreviewSrcSet) {
+      wv.__dshPreviewSrcSet = true
+      const pending = browserStore.takePendingCommand()
+      let initial = ''
+      const tab = browserStore.get().tabs.find((t) => t.id === tabId)
+      if (pending && pending.op === 'navigate' && pending.url) initial = pending.url
+      else if (tab) initial = tab.address
+      wv.setAttribute('src', initial || BLANK_PAGE)
+    }
+    if (!inShell || wv.__dshPreviewBound) return
+    wv.__dshPreviewBound = true
+    const isActive = () => browserStore.get().activeTabId === tabId
+    wv.addEventListener('did-navigate', () => { if (isActive()) refreshNavState() })
+    wv.addEventListener('did-navigate-in-page', () => { if (isActive()) refreshNavState() })
+    wv.addEventListener('did-finish-load', () => { if (isActive()) { setLoading(false); refreshNavState() } })
+    wv.addEventListener('did-start-loading', () => { if (isActive()) setLoading(true) })
+    wv.addEventListener('did-stop-loading', () => { if (isActive()) setLoading(false) })
+    wv.addEventListener('page-title-updated', (event) => {
+      const title = (event && event.title) || (wv.getTitle ? wv.getTitle() : '')
+      browserStore.setTitle(tabId, title)
+    })
+  }
+
+  React.useEffect(() => {
+    refreshNavState()
+    try {
+      const surf = browserStore.getSurface()
+      setLoading(surf && surf.isLoading ? surf.isLoading() : false)
+    } catch (e) { setLoading(false) }
+  }, [state.activeTabId, refreshNavState])
+
+  const navigate = React.useCallback((input) => {
+    const url = toUrl(input)
+    const shown = url === BLANK_PAGE ? '' : url
+    browserStore.setAddress(shown)
+    const wv = browserStore.getSurface()
+    if (!wv) return
+    if (wv.loadURL) {
+      setLoading(true)
+      wv.loadURL(url).catch(() => setLoading(false))
+    } else {
+      wv.setAttribute('src', url)
+      setLoading(true)
+    }
+  }, [])
+
+  const commitEdit = React.useCallback((tabId, value) => {
+    setEditing(null)
+    if (!(value || '').trim()) return
+    browserStore.activateTab(tabId)
+    navigate(value)
+  }, [navigate])
+
+  const goBack = React.useCallback(() => { const s = browserStore.getSurface(); if (s && s.goBack) s.goBack() }, [])
+  const goForward = React.useCallback(() => { const s = browserStore.getSurface(); if (s && s.goForward) s.goForward() }, [])
+  const reload = React.useCallback(() => { const s = browserStore.getSurface(); if (s && s.reload) s.reload() }, [])
+  const stop = React.useCallback(() => { const s = browserStore.getSurface(); if (s && s.stop) s.stop(); setLoading(false) }, [])
+
+  const toolbarStyle = {
+    display: 'flex', alignItems: 'center', gap: 4,
+    padding: '5px 10px', borderBottom: '1px solid rgba(127,127,127,0.25)',
+    background: 'var(--dsw-alias-bg-base)',
+  }
+  const tabsStyle = {
+    display: 'flex', alignItems: 'center', gap: 4, flex: 1, minWidth: 0,
+    overflowX: 'auto', padding: '1px 2px',
+  }
+  const surfaceStyle = { flex: 1, width: '100%', border: 'none', background: '#fff' }
+
+  return React.createElement('div', { style: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: 'var(--dsw-alias-bg-base)', color: 'var(--dsw-alias-label-primary)' } },
+    React.createElement('div', { style: toolbarStyle, role: 'toolbar', 'aria-label': '浏览器工具栏' },
+      React.createElement('button', { type: 'button', className: 'dshbr-btn', onClick: goBack, disabled: !canGoBack, title: '后退', 'aria-label': '后退' },
+        React.createElement(SvgIcon, { d: ICONS.back, size: 13.5 })),
+      React.createElement('button', { type: 'button', className: 'dshbr-btn', onClick: goForward, disabled: !canGoForward, title: '前进', 'aria-label': '前进' },
+        React.createElement(SvgIcon, { d: ICONS.forward, size: 13.5 })),
+      React.createElement('button', { type: 'button', className: 'dshbr-btn', onClick: reload, title: '刷新', 'aria-label': '刷新' },
+        React.createElement(SvgIcon, { d: ICONS.reload, size: 12 })),
+      React.createElement('button', { type: 'button', className: 'dshbr-btn', onClick: stop, disabled: !loading, title: '停止', 'aria-label': '停止' },
+        React.createElement(SvgIcon, { d: ICONS.stop, size: 13.5 })),
+      React.createElement('div', { style: tabsStyle, role: 'tablist', 'aria-label': '标签页' },
+        state.tabs.map((tab) => {
+          const isEditing = editing && editing.id === tab.id
+          return React.createElement('div', {
+            key: tab.id,
+            role: 'tab',
+            'aria-selected': tab.id === active.id,
+            tabIndex: 0,
+            className: 'dshbr-tab' + (tab.id === active.id ? ' active' : '') + (isEditing ? ' editing' : ''),
+            title: isEditing ? undefined : (tab.current || '新标签页，双击编辑地址'),
+            onClick: () => browserStore.activateTab(tab.id),
+            onDoubleClick: () => {
+              browserStore.activateTab(tab.id)
+              setEditing({ id: tab.id, value: tab.address || tab.current || '' })
+            },
+            onKeyDown: (e) => {
+              if (e.key === 'Enter' || e.key === ' ') browserStore.activateTab(tab.id)
+            },
+          },
+            isEditing
+              ? React.createElement('input', {
+                className: 'dshbr-tab-input',
+                autoFocus: true,
+                value: editing.value,
+                onChange: (e) => setEditing({ id: tab.id, value: e.target.value }),
+                onFocus: (e) => e.target.select(),
+                onClick: (e) => e.stopPropagation(),
+                onDoubleClick: (e) => e.stopPropagation(),
+                onKeyDown: (e) => {
+                  e.stopPropagation()
+                  if (e.key === 'Enter') commitEdit(tab.id, editing.value)
+                  else if (e.key === 'Escape') setEditing(null)
+                },
+                onBlur: () => commitEdit(tab.id, editing.value),
+                placeholder: '输入网址后回车',
+                'aria-label': '编辑标签页地址 ' + tabLabel(tab),
+                spellCheck: false,
+              })
+              : React.createElement('span', { className: 'dshbr-tab-title' }, tabLabel(tab)),
+            React.createElement('button', {
+              type: 'button',
+              className: 'dshbr-btn',
+              onClick: (e) => { e.stopPropagation(); browserStore.closeTab(tab.id) },
+              title: '关闭标签页',
+              'aria-label': '关闭标签页 ' + tabLabel(tab),
+            }, React.createElement(SvgIcon, { d: ICONS.x, size: 10 })),
+          )
+        }),
+        React.createElement('button', {
+          type: 'button',
+          className: 'dshbr-btn',
+          onClick: () => {
+            const id = browserStore.addTab()
+            setEditing({ id, value: '' })
+          },
+          title: '新建标签页',
+          'aria-label': '新建标签页',
+        }, React.createElement(SvgIcon, { d: ICONS.plus, size: 13.5 })),
+      ),
+    ),
+    state.tabs.map((tab) => {
+      const hidden = tab.id === active.id ? {} : { display: 'none' }
+      const bindRef = (el) => { bindSurface(tab.id)(el) }
+      return inShell
+        ? React.createElement('webview', {
+          key: tab.id,
+          ref: bindRef,
+          style: Object.assign({}, surfaceStyle, hidden),
+          allowpopups: true,
+          useragent: chromeUserAgent(),
+          partition: 'persist:dsh-browser',
+        })
+        : React.createElement('iframe', {
+          key: tab.id,
+          ref: bindRef,
+          style: Object.assign({}, surfaceStyle, hidden),
+          onLoad: () => {
+            if (browserStore.get().activeTabId !== tab.id) return
+            setLoading(false)
+            browserStore.setCurrent(tab.id, tab.address)
+          },
+          title: '内置浏览器',
+          sandbox: 'allow-same-origin allow-scripts allow-forms allow-popups allow-downloads',
+        })
+    }),
+  )
+}
+
+const MD_EXT = { md: 1, markdown: 1, mdx: 1 }
+function FilePreviewSurface({ file }) {
+  const path = file ? file.path : null
+  const [res, setRes] = React.useState(null)
+
+  React.useEffect(() => {
+    if (!path) { setRes(null); return }
+    let alive = true
+    setRes({ loading: true, error: null, data: null })
+    rpcCall('read-file', { path }).then((r) => {
+      if (!alive) return
+      if (r && r.ok === true) setRes({ loading: false, error: null, data: r })
+      else setRes({ loading: false, error: (r && r.error) || '读取失败', data: null })
+    }, (err) => {
+      if (alive) setRes({ loading: false, error: errorText(err), data: null })
+    })
+    return () => { alive = false }
+  }, [path])
+
+  if (!path) {
+    return React.createElement('div', { className: 'dshpv-empty' },
+      React.createElement('div', null, '还没有打开文件'),
+      React.createElement('div', { className: 'dshpv-emptyhint' }, '在左侧资源管理器中双击文件，即可在此预览'))
+  }
+  if (res && res.error) {
+    return React.createElement('div', { className: 'dshpv-status' },
+      React.createElement('span', { className: 'dshpv-error', role: 'alert' }, res.error))
+  }
+  if (!res || res.loading || !res.data) {
+    return React.createElement('div', { className: 'dshpv-status' }, '正在读取文件…')
+  }
+  const data = res.data
+  if (data.kind === 'image') {
+    return React.createElement('div', { className: 'dshpv-imgwrap' },
+      React.createElement('img', { src: 'data:' + data.mime + ';base64,' + data.data, alt: file.name, className: 'dshpv-img' }))
+  }
+  const ext = String(data.ext || '').toLowerCase()
+  const isMd = MD_EXT[ext] === 1
+  return React.createElement('div', { className: 'dshpv-textwrap' },
+    isMd
+      ? React.createElement('div', { className: 'dshpv-md', dangerouslySetInnerHTML: { __html: renderMarkdown(data.text) } })
+      : React.createElement('pre', { className: 'dshpv-pre' }, data.text))
+}
+
+function PreviewView() {
+  const [pstate, setPstate] = React.useState(previewStore.get())
+  React.useEffect(() => previewStore.subscribe(() => setPstate(previewStore.get())), [])
+  const mode = pstate.mode
+
+  const header = React.createElement('div', { className: 'dshpv-modetabs' },
+    React.createElement('button', {
+      type: 'button',
+      className: mode === 'file' ? 'dshpv-modetab dshpv-modetab-active' : 'dshpv-modetab',
+      onClick: () => previewStore.setMode('file'),
+    }, React.createElement(SvgIcon, { d: ICONS.file, size: 14 }), React.createElement('span', null, '文件预览')),
+    React.createElement('button', {
+      type: 'button',
+      className: mode === 'browser' ? 'dshpv-modetab dshpv-modetab-active' : 'dshpv-modetab',
+      onClick: () => { previewStore.setMode('browser'); browserStore.setOpen(true) },
+    }, React.createElement(SvgIcon, { d: ICONS.globe, size: 14 }), React.createElement('span', null, '内置浏览器')),
+    pstate.file
+      ? React.createElement('span', { className: 'dshpv-modetitle' }, pstate.file.name)
+      : null,
+  )
+  const body = mode === 'browser'
+    ? React.createElement(BrowserSurface)
+    : React.createElement(FilePreviewSurface, { file: pstate.file })
+  return React.createElement('div', { className: 'dshpv-root' }, header, body)
+}
+
+function HeaderPreviewButton() {
+  return React.createElement('button', {
+    type: 'button',
+    className: 'dshpv-headerbtn',
+    title: '在会话中打开内置浏览器',
+    'aria-label': '在会话中打开内置浏览器',
+    onClick: () => { previewStore.setMode('browser'); browserStore.setOpen(true); activatePreviewView() },
+  }, React.createElement(SvgIcon, { d: ICONS.globe, size: 15 }))
+}
+
+function FooterBrowserToggle(props) {
+  const wide = !!props.wide
+  const [open, setOpen] = React.useState(browserStore.get().open)
+  React.useEffect(() => browserStore.subscribe(() => setOpen(browserStore.get().open)), [])
+  const label = open ? '关闭浏览器' : '内置浏览器'
+  return React.createElement('button', {
+    type: 'button',
+    onClick: () => {
+      if (open) {
+        previewStore.setMode('file')
+        browserStore.setOpen(false)
+      } else {
+        previewStore.setMode('browser')
+        browserStore.setOpen(true)
+        activatePreviewView()
+      }
+    },
+    title: label,
+    'aria-label': label,
+    'aria-pressed': open,
+    style: {
+      display: 'flex', alignItems: 'center', justifyContent: wide ? 'flex-start' : 'center',
+      gap: 6, width: '100%', border: 'none', background: open ? 'rgba(127,127,127,0.18)' : 'transparent',
+      cursor: 'pointer', padding: wide ? '6px 10px' : '6px', borderRadius: 8, color: 'inherit', fontSize: 14,
+    },
+  },
+    React.createElement(SvgIcon, { d: ICONS.globe, size: 16 }),
+    wide ? React.createElement('span', null, label) : null)
 }
 
 // ---- plugin apply ----
@@ -791,15 +1567,33 @@ function apply(ctx) {
   if (slots === undefined) return
   const disposeCss = insertCss(CSS)
 
+  // Install our browser controller (the Desktop shell drives the agent's
+  // browser_* tools through window.__dshBrowser); restore the previous one on
+  // teardown. Detect the Electron shell (desktopBridge carries the port).
+  const win = typeof globalThis !== 'undefined' ? globalThis : null
+  if (win) {
+    const previousBrowserController = win.__dshBrowser
+    win.__dshBrowser = pageBrowserController
+    ctx.effect(() => () => {
+      if (win.__dshBrowser === pageBrowserController) win.__dshBrowser = previousBrowserController
+    })
+    if (win.desktopBridge && win.desktopBridge.browserPort) {
+      browserStore.setInShell(true)
+    }
+  }
+
   // One level of the current session's cwd via the host fileReferences Remote.
   // relDir '' = root; any other value is a relative directory path.
   const listDirectory = (sessionId, relDir, signal) => {
-    const remote = ctx.get('remote')
-    if (!remote || !remote.fileReferences || typeof remote.fileReferences.list !== 'function') {
+    // Read the Remote sub-service by its FULL key: traversing
+    // ctx.get('remote').fileReferences would walk the cordis service proxy
+    // and hit the inject guard (mirrors the TS plugin's approach).
+    const fileReferences = ctx.get('remote.fileReferences')
+    if (!fileReferences || typeof fileReferences.list !== 'function') {
       return Promise.reject(new Error('文件引用服务不可用'))
     }
     const query = relDir === '' ? '' : relDir + '/'
-    return remote.fileReferences.list(sessionId, query, signal).then((result) => {
+    return fileReferences.list(sessionId, query, signal).then((result) => {
       if (signal && signal.aborted) throw new Error('已取消')
       if (!result || result.ok !== true) {
         const msg = result && result.error ? (result.error.message || String(result.error)) : '目录读取失败'
@@ -823,23 +1617,46 @@ function apply(ctx) {
   ctx.effect(() => {
     const disposers = [disposeCss]
     disposers.push(slots.register({
-      name: 'sidebar',
+      name: 'sidebar.workspaces',
       priority: -1,
       children: {
         'sidebar.activity': { kind: 'list', scope: 'root' },
         'sidebar.panel': { kind: 'list', scope: 'root' },
       },
-      inject: () => ({
-        toggleSidebar: () => {
-          const l = ctx.get('layout')
-          if (l && typeof l.toggleSidebar === 'function') l.toggleSidebar()
-        },
-      }),
     }, SidebarShell))
     disposers.push(slots.register({ name: 'sidebar.activity', id: 'sessions', order: 1, priority: -1, inject: () => ({ panelId: 'sessions' }) }, ActivityIcon))
     disposers.push(slots.register({ name: 'sidebar.activity', id: 'explorer', order: 2, priority: -1, inject: () => ({ panelId: 'explorer' }) }, ActivityIcon))
     disposers.push(slots.register({ name: 'sidebar.panel', id: 'sessions', order: 1, priority: -1, inject: () => ({ panelId: 'sessions' }) }, SessionsPanel))
     disposers.push(slots.register({ name: 'sidebar.panel', id: 'explorer', order: 2, priority: -1, inject: () => ({ panelId: 'explorer', listDirectory, openPath }) }, ExplorerPanel))
+    // Session-area 预览 view (conversation.view ring) — waits for the slot the
+    // ui-conversation bundle declares, so registration order does not matter.
+    disposers.push(slots.inject('conversation.view', () => slots.register({
+      name: 'conversation.view',
+      id: 'preview',
+      order: 20,
+      label: () => '预览',
+    }, PreviewView)))
+    // Kill the built-in full-screen browser overlay (same id replaces it).
+    disposers.push(slots.inject('shell.overlay', () => slots.register({
+      name: 'shell.overlay',
+      id: 'builtin-browser',
+      order: 10,
+      priority: -1,
+    }, () => null)))
+    // Replace the built-in sidebar toggle with one that opens the session-area browser.
+    disposers.push(slots.inject('sidebar.footer.action', () => slots.register({
+      name: 'sidebar.footer.action',
+      id: 'builtin-browser',
+      order: 10,
+      priority: -1,
+    }, FooterBrowserToggle)))
+    // Session header button for the browser.
+    disposers.push(slots.inject('conversation.session.header.actions', () => slots.register({
+      name: 'conversation.session.header.actions',
+      id: 'preview-open',
+      order: 30,
+      label: () => '预览',
+    }, HeaderPreviewButton)))
     return () => {
       for (const d of disposers) {
         try { if (typeof d === 'function') d() } catch (e) { /* noop */ }

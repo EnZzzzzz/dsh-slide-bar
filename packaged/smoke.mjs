@@ -24,16 +24,18 @@ if (typeof exportsObj.apply !== 'function') throw new Error('exports.apply is no
 exportsObj.apply({ get: () => undefined, effect: () => {} })
 console.log('apply(no slots) OK')
 
-// apply with a mock slots registry exercising all five registrations.
+// apply with a mock slots registry exercising all registrations (the shell,
+// two activity + two panel entries, and the four inject-waited preview slots).
 let registerCount = 0
 const mockSlots = {
   register: () => { registerCount += 1; return () => {} },
+  inject: (_key, callback) => { callback(); return () => {} },
 }
 const mockCtx = {
   get: (name) => (name === 'slots' ? mockSlots : undefined),
   effect: (fn) => { fn(); return () => {} },
 }
 exportsObj.apply(mockCtx)
-if (registerCount !== 5) throw new Error(`expected 5 registrations, got ${registerCount}`)
+if (registerCount !== 9) throw new Error(`expected 9 registrations, got ${registerCount}`)
 console.log(`apply(full) OK — ${registerCount} slot registrations`)
 console.log('SMOKE OK')
