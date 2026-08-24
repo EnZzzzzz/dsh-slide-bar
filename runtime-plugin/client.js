@@ -144,6 +144,24 @@ return {
       return Promise.reject(new Error('工作区服务不可用'))
     }
 
+    // ---- session row context-menu verbs (mirror the shipped ui-workspace) ----
+    // Fork: clone the session from its last completed turn and open the child.
+    function forkSession(sessionId) {
+      const s = ctx.get('sessions')
+      if (!s || typeof s.fork !== 'function') return Promise.resolve()
+      return s.fork({ sessionId, increaseTitle: true }).then((childId) => {
+        if (s && typeof s.open === 'function') s.open(childId)
+      }).catch(() => {})
+    }
+    // Archive: move the session into the registry-global archived set.
+    function archiveSession(sessionId) {
+      const w = ctx.get('workspaces')
+      if (!w || typeof w.archiveSession !== 'function') return Promise.resolve()
+      return w.archiveSession(sessionId).catch((reason) => {
+        console.warn('session archive rejected:', reason)
+      })
+    }
+
     // ---- explorer context-menu verbs ----
     function fallbackCopy(text) {
       try {
@@ -300,6 +318,42 @@ return {
       }, React.createElement(SvgIcon, { d: icon, size: props.wide ? 16 : 18 }))
     }
 
+    // ---- sessions panel row context menu ----
+    function SessionsMenu({ menu, onClose }) {
+      if (menu === null) return null
+      const vw = typeof window !== 'undefined' ? window.innerWidth : 480
+      const vh = typeof window !== 'undefined' ? window.innerHeight : 360
+      const x = Math.max(4, Math.min(menu.x, vw - 190))
+      const y = Math.max(4, Math.min(menu.y, vh - 128))
+      const items = []
+      if (menu.kind === 'group') {
+        items.push(React.createElement('button', {
+          key: 'copy-path',
+          type: 'button',
+          className: 'dshsb-menu-item',
+          onClick: () => { copyText(menu.path); onClose() },
+        }, '复制路径'))
+      } else {
+        items.push(React.createElement('button', {
+          key: 'fork',
+          type: 'button',
+          className: 'dshsb-menu-item',
+          onClick: () => { forkSession(menu.sessionId); onClose() },
+        }, '分叉会话'))
+        items.push(React.createElement('button', {
+          key: 'archive',
+          type: 'button',
+          className: 'dshsb-menu-item',
+          onClick: () => { archiveSession(menu.sessionId); onClose() },
+        }, '归档会话'))
+      }
+      return React.createElement('div', {
+        className: 'dshsb-menu',
+        style: { left: x, top: y },
+        onContextMenu: (e) => { e.preventDefault() },
+      }, items)
+    }
+
     // ---- 会话 panel: collapsible workspace tree (first level = workspace) ----
     function basename(path) {
       if (typeof path !== 'string' || path === '') return undefined
@@ -328,6 +382,7 @@ return {
         groups.push({
           key: workspace.workspaceId,
           label: workspace.title || basename(workspace.path) || '工作区',
+          path: workspace.path,
           members,
         })
       }
@@ -387,6 +442,30 @@ return {
         setGroupExpansion(prev => Object.assign({}, prev, { [currentGroupKey]: true }))
       }, [currentGroupKey, groupExpansion])
 
+      // Right-click context menu state (group → copy path; session → fork/archive).
+      const [menu, setMenu] = React.useState(null)
+      const openMenu = React.useCallback((m) => { setMenu(m) }, [])
+      const closeMenu = React.useCallback(() => { setMenu(null) }, [])
+      React.useEffect(() => {
+        if (props.activePanelId !== props.panelId) closeMenu()
+      }, [props.activePanelId, props.panelId, closeMenu])
+      React.useEffect(() => {
+        if (menu === null) return
+        const isInside = (target) => target && typeof target.closest === 'function' && target.closest('.dshsb-menu') !== null
+        const onDown = (e) => { if (!isInside(e.target)) closeMenu() }
+        const onKey = (e) => { if (e.key === 'Escape') closeMenu() }
+        if (typeof window !== 'undefined') {
+          window.addEventListener('mousedown', onDown, true)
+          window.addEventListener('keydown', onKey, true)
+        }
+        return () => {
+          if (typeof window !== 'undefined') {
+            window.removeEventListener('mousedown', onDown, true)
+            window.removeEventListener('keydown', onKey, true)
+          }
+        }
+      }, [menu, closeMenu])
+
       if (props.activePanelId !== props.panelId) return null
 
       const sessionsSvc = ctx.get('sessions')
@@ -415,6 +494,12 @@ return {
             role: 'treeitem',
             'aria-expanded': expanded,
             onClick: () => { toggleGroup(group.key) },
+            onContextMenu: (e) => {
+              // The ungrouped bucket has no real folder path behind it.
+              if (typeof group.path !== 'string' || group.path === '') return
+              e.preventDefault()
+              openMenu({ kind: 'group', path: group.path, x: e.clientX, y: e.clientY })
+            },
           },
             React.createElement(SvgIcon, { className: 'dshsb-group-fold', d: expanded ? ICONS.folderOpen : ICONS.folder, size: 16 }),
             React.createElement(SvgIcon, { className: expanded ? 'dshsb-group-chev dshsb-group-chev-open' : 'dshsb-group-chev', d: ICONS.chevronRight, size: 14 }),
@@ -431,6 +516,10 @@ return {
                 role: 'treeitem',
                 'aria-selected': active,
                 onClick: () => { openSession(m.id) },
+                onContextMenu: (e) => {
+                  e.preventDefault()
+                  openMenu({ kind: 'session', sessionId: m.id, x: e.clientX, y: e.clientY })
+                },
               },
                 React.createElement('span', { className: 'dshsb-sessdot' },
                   showDot ? React.createElement('span', { className: 'dshsb-sessdot-on' }) : null),
@@ -452,7 +541,8 @@ return {
               'aria-label': '新建会话',
               onClick: startNew,
             }, React.createElement(SvgIcon, { d: ICONS.plus, size: 16 })))),
-        React.createElement('div', { className: 'dshsb-tree' }, rows))
+        React.createElement('div', { className: 'dshsb-tree' }, rows),
+        React.createElement(SessionsMenu, { menu, onClose: closeMenu }))
     }
 
     // ---- explorer viewing store (reducer + localStorage persistence) ----

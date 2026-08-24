@@ -18,7 +18,7 @@
 ## 结构
 
 - `src/index.js` — Host 半边：空 apply（纯 UI 插件占位）。
-- `src/client/index.js` — Client 半边：重绘 `sidebar`（priority −1）+ 活动栏 + 会话工作区树 + 资源管理器（右键菜单：复制路径/复制相对路径/添加到会话 → 原生 `@file` chip）。
+- `src/client/index.js` — Client 半边：重绘 `sidebar`（priority −1）+ 活动栏 + 会话工作区树 + 资源管理器（右键菜单：复制路径/复制相对路径/添加到会话 → 原生 `@file` chip）。会话面板同样带右键菜单：工作区行「复制路径」，会话行「分叉会话 / 归档会话」（与原版 ui-workspace 同一套 `sessions.fork` / `workspaces.archiveSession` 服务）。
 - `build.mjs` — 无工具链构建：把 client 源码包进 `window.__ModuleLoader__.load({id, factory})` 闭包工厂（`React` 由 `require('react')` 解析），产出 `lib/client.js`；`lib/index.js` 为 ESM 空 host。
 - `smoke.mjs` — 冒烟测试：加载闭包工厂、调用 `apply`（无 slots 早退 + 全量注册 5 个槽位）。
 - `cordis.patch.yml` — bundle 层：把本包插入 web-app client roster。

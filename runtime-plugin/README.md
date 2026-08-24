@@ -15,6 +15,7 @@
 2. **活动栏 + 面板切换**：shell 持有 `activePanelId`（localStorage `dsh.sidebar.view.v1` 持久化），通过 `renderSlot` 把 `activePanelId`/`selectPanel`/`wide` 作为 owner props 下发给子槽位；图标点击切换并高亮，面板按 `activePanelId !== panelId` 自门控渲染 null。
 3. **资源管理器**：把 `plugin/src/client/ExplorerPanel.tsx` + `stores.ts` 的设计/算法原样移植成纯 JS（`useReducer` 视图状态 + localStorage 持久化 + 每路径一个 `AbortController` + 懒加载/重试/截断/隐藏文件开关）；行级右键菜单支持「复制路径 / 复制相对路径 / 添加到会话」。**添加到会话**走 dsh 原生 `@file` 提及：文件经 `ctx.get('conversation').input.for(binding.ctx).insertReference` 铸成 `appearance:'file'` 的 chip occurrence，目录则按 `dsh-file-reference` 的 `formatFileMention` 语法追加纯文本 `@dir/`（含空格路径用 `@"…"` 引号形式）。
 4. **目录数据**：Client 用 `host.call('list-directory', …)` 经 Host 的 `fs.listDir` 取数（`ctx.workspaces.listDirectory` 在干净仓库里只列目录、无 `kind`，不够文件树用）。
+5. **会话面板右键菜单**：工作区（文件夹）行右键 →「复制路径」（复制该工作区目录的绝对路径）；会话行右键 →「分叉会话 / 归档会话」，与原始 dsh 的 ui-workspace 行为一致——分叉用 `ctx.sessions.fork({ sessionId, increaseTitle: true })` 然后 `open` 子会话，归档用 `ctx.workspaces.archiveSession(sessionId)`。「未分组」桶没有真实路径，右键不弹菜单。
 
 ## 关键约束（为什么活动栏必须这样做）
 
@@ -43,5 +44,5 @@ dsh 的 slot 系统规定：**子槽位只能由注册父槽位的那个 entry �
 ## 已知限制
 
 - 视觉截图验证受限于会话环境（动态 Client 插件只注入到当前会话的页面，新开的浏览器标签页收不到；`read_image` 亦不可用），故以 slot ledger 的程序化验证为准。
-- 「会话」默认面板是轻量实现，非原 `ui-workspace` 浏览器：一级为可折叠的工作区（文件夹图标 + chevron + 会话数），展开后列出该工作区下全部会话（状态点 + 标题 + 相对时间），游离会话归入「未分组」；展开状态持久化，并自动展开当前会话所在的工作区。settings 座位在重绘 shell 中未保留（见上「关键约束」）。
+- 「会话」默认面板是轻量实现，非原 `ui-workspace` 浏览器：一级为可折叠的工作区（文件夹图标 + chevron + 会话数），展开后列出该工作区下全部会话（状态点 + 标题 + 相对时间），游离会话归入「未分组」；展开状态持久化，并自动展开当前会话所在的工作区。settings 座位在重绘 shell 中未保留（见上「关键约束」）。右键菜单的「分叉 / 归档」与原版行为一致（同一套 client 服务），但面板本身不含原版的搜索、重命名、拖拽排序、分组建模。
 - 打开文件走 `ctx.workspaces.openPath`（系统默认程序）；无应用内编辑器/预览、无文件写操作、无自动刷新。
