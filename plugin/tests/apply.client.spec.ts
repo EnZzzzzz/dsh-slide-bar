@@ -23,6 +23,7 @@ usePinnedBrowserLanguages('zh-CN')
 type BenchOptions = {
   sessions?: Record<string, unknown>
   remote?: Record<string, unknown>
+  fileReferences?: Record<string, unknown>
 }
 
 async function bench(options: BenchOptions = {}) {
@@ -44,9 +45,11 @@ async function bench(options: BenchOptions = {}) {
     },
     ...options.sessions,
   } as never)
-  // The explorer panel lists through the host fileReferences Remote; the apply
-  // only closes over it (no eager call), so an absent/mock service is fine.
+  // The explorer panel lists through the host fileReferences Remote. The apply
+  // declares 'remote' and 'remote.fileReferences' (dotted child service), so
+  // the bench provides both to let the plugin activate.
   ctx.provide('remote', options.remote ?? {} as never)
+  ctx.provide('remote.fileReferences', options.fileReferences ?? {} as never)
   const locale = new LocaleRuntime(ctx)
   ctx.provide('locale', locale)
   return { ctx, slots: ctx.get('slots') as SlotRegistry, locale, listDirectory, openPath }
@@ -70,7 +73,7 @@ function byId(entries: ReturnType<SlotRegistry['entries']>, id: string) {
 
 describe('dsh-slide-bar apply', () => {
   it('declares the services it drives', () => {
-    expect(inject).toEqual(['slots', 'sessions', 'workspaces', 'locale', 'remote'])
+    expect(inject).toEqual(['slots', 'sessions', 'workspaces', 'locale', 'remote', 'remote.fileReferences'])
   })
 
   it('registers explorer and sessions entries for declarations arriving before or after apply', async () => {
@@ -113,7 +116,8 @@ describe('dsh-slide-bar apply', () => {
           }),
         },
       },
-      remote: { fileReferences },
+      remote: {},
+      fileReferences,
     })
     declare(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()

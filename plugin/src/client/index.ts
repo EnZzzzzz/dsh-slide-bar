@@ -49,7 +49,7 @@ const EXPLORER_PANEL_ID = 'explorer'
 const SESSIONS_PANEL_ID = 'sessions'
 
 /** Services required by this plugin. */
-export const inject = ['slots', 'sessions', 'workspaces', 'locale', 'remote']
+export const inject = ['slots', 'sessions', 'workspaces', 'locale', 'remote', 'remote.fileReferences']
 
 /**
  * Join a relative fileReferences path onto the cwd root ('' = the root
@@ -92,8 +92,12 @@ export function apply(ctx: ClientContext): void {
     entries: Array<{ name: string; path: string; kind: 'file' | 'directory'; hidden: boolean }>
     truncated: boolean
   }> => {
-    const remote = ctx.get('remote') as { fileReferences?: FileReferencesRemote } | undefined
-    if (!remote || !remote.fileReferences || typeof remote.fileReferences.list !== 'function') {
+    // fileReferences is a dotted child service of ctx.remote (declared as
+    // 'remote.fileReferences'); read it directly by its full key — reading
+    // ctx.get('remote').fileReferences would traverse the cordis service
+    // proxy and hit the inject guard.
+    const fileReferences = ctx.get('remote.fileReferences') as FileReferencesRemote | undefined
+    if (!fileReferences || typeof fileReferences.list !== 'function') {
       throw new Error('文件引用服务不可用')
     }
     const sessionsSvc = ctx.get('sessions')
@@ -108,7 +112,7 @@ export function apply(ctx: ClientContext): void {
     if (sessionId === undefined) throw new Error('没有可用的会话')
     const rel = path === cwd ? '' : (path.startsWith(cwd + '/') ? path.slice(cwd.length + 1) : path)
     const query = rel === '' ? '' : rel + '/'
-    const result = await remote.fileReferences.list(sessionId, query, signal)
+    const result = await fileReferences.list(sessionId, query, signal)
     if (signal && signal.aborted) throw new Error('已取消')
     if (!result || result.ok !== true) {
       const msg = result && result.error ? (result.error.message || String(result.error)) : '目录读取失败'
