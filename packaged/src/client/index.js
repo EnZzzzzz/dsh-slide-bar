@@ -163,8 +163,6 @@ const CSS = `
 .dshpv-md table{border-collapse:collapse;margin:.8em 0;font-size:13px}
 .dshpv-md th,.dshpv-md td{border:1px solid var(--dsw-alias-border-l1);padding:6px 10px;text-align:left}
 .dshpv-md th{background:var(--dsw-alias-bg-layer-1)}
-.dshpv-headerbtn{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:none;border-radius:50%;background:transparent;cursor:pointer;color:var(--dsw-alias-label-secondary)}
-.dshpv-headerbtn:hover{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}
 .dshbr-btn{display:flex;align-items:center;justify-content:center;flex:none;border:none;background:transparent;cursor:pointer;padding:4px;border-radius:50%;color:inherit;opacity:.85;transition:background-color 120ms ease,opacity 120ms ease}
 .dshbr-btn:hover:not(:disabled){background:rgba(77,107,254,.06);opacity:1}
 .dshbr-btn:disabled{opacity:.35;cursor:default}
@@ -1778,16 +1776,6 @@ function PreviewView() {
   return React.createElement('div', { className: 'dshpv-root' }, header, body)
 }
 
-function HeaderPreviewButton() {
-  return React.createElement('button', {
-    type: 'button',
-    className: 'dshpv-headerbtn',
-    title: '在会话中打开内置浏览器',
-    'aria-label': '在会话中打开内置浏览器',
-    onClick: () => { previewStore.setMode('browser'); browserStore.setOpen(true); activatePreviewView() },
-  }, React.createElement(SvgIcon, { d: ICONS.globe, size: 15 }))
-}
-
 function FooterBrowserToggle(props) {
   const wide = !!props.wide
   const [open, setOpen] = React.useState(browserStore.get().open)
@@ -1911,13 +1899,6 @@ function apply(ctx) {
       order: 10,
       priority: -1,
     }, FooterBrowserToggle)))
-    // Session header button for the browser.
-    disposers.push(slots.inject('conversation.session.header.actions', () => slots.register({
-      name: 'conversation.session.header.actions',
-      id: 'preview-open',
-      order: 30,
-      label: () => '预览',
-    }, HeaderPreviewButton)))
     return () => {
       for (const d of disposers) {
         try { if (typeof d === 'function') d() } catch (e) { /* noop */ }
