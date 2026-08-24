@@ -27,6 +27,7 @@
   "license": "MIT",
   "files": [
     "lib",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "vendor"
   ]
 }

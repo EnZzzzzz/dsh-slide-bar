@@ -17,6 +17,16 @@ const PACKAGE_ID = 'dsh-sidebar-live'
 // channel over ctx.inject(['connection']).
 const hostSrc = await readFile(new URL('src/index.js', import.meta.url), 'utf8')
 
+// Vendored Selector editor (the 标注 / element-picker feature), ported from
+// dsh-builtin-browser. The editor runs entirely inside the guest page, so the
+// client ships its bundle + stylesheet as plain string constants and injects
+// them on demand (webview.executeJavaScript in the Electron shell, or a
+// <script> element into a same-origin iframe). JSON.stringify escapes the
+// payloads exactly like the builtin-browser selector-assets generator.
+const editorBundle = await readFile(new URL('vendor/selector/editor.bundle.js', import.meta.url), 'utf8')
+const editorCss = await readFile(new URL('vendor/selector/editor.css', import.meta.url), 'utf8')
+const editorAssets = `const editorBundle = ${JSON.stringify(editorBundle)};\nconst editorCss = ${JSON.stringify(editorCss)};\n`
+
 const clientSrc = await readFile(new URL('src/client/index.js', import.meta.url), 'utf8')
 const client = `window.__ModuleLoader__.load({
   id: ${JSON.stringify(PACKAGE_ID)},
@@ -25,7 +35,7 @@ const client = `window.__ModuleLoader__.load({
     var exports = module.exports;
     Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
     const React = require('react');
-${clientSrc}
+${editorAssets}${clientSrc}
     // Declared service deps: the web frontend's ctx guard throws "cannot get
     // property ... without inject" on any service property access unless the
     // bundle declares them; Remote sub-services must be named by FULL key

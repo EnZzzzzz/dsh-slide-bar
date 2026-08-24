@@ -82,6 +82,7 @@ const ICONS = {
   reload: 'M13.5 8 A5.5 5.5 0 1 1 11 4.3 M13.5 3 V5.5 H11',
   stop: 'M5 5 L11 11 M11 5 L5 11',
   x: 'M4 4 L12 12 M12 4 L4 12',
+  crosshair: 'M8 2.2 C4.8 2.2 2.2 4.8 2.2 8 C2.2 11.2 4.8 13.8 8 13.8 C11.2 13.8 13.8 11.2 13.8 8 C13.8 4.8 11.2 2.2 8 2.2 Z M8 4.2 V6 M8 10 V11.8 M4.2 8 H6 M10 8 H11.8',
 }
 
 const CSS = `
@@ -177,6 +178,16 @@ const CSS = `
 .dshbr-tab-input{flex:1;min-width:60px;border:none;outline:none;background:transparent;color:inherit;font:inherit;padding:0}
 .dshbr-tab .dshbr-btn{padding:2px}
 .dshbr-tab:not(.active):not(:hover) .dshbr-btn{opacity:.5}
+/* 标注 (element-picking) toolbar button: brand-blue badge while armed. */
+.dshbr-btn-picking{background:rgba(77,107,254,.28);opacity:1}
+.dshbr-btn-picking:hover:not(:disabled){background:rgba(77,107,254,.34)}
+/* Transient error/notice toast under the browser toolbar. */
+.dshbr-toast{display:flex;align-items:center;gap:8px;flex:none;padding:7px 12px;font-size:13px;line-height:1.4;border-bottom:1px solid rgba(220,38,38,.3);background:rgba(220,38,38,.12);color:#dc2626}
+.dshbr-toast-ok{border-bottom-color:rgba(22,163,74,.3);background:rgba(22,163,74,.1);color:#15803d}
+/* Hide the composer while the 预览 (file/browser) view is active: the preview
+   root only exists when the conversation view ring has this entry selected,
+   so the seat reappears automatically when the user switches back to 对话. */
+[data-conversation-scroll]:has(.dshpv-root) > [data-composer-seat]{display:none}
 `
 
 function joinAbs(root, rel) {
@@ -969,6 +980,8 @@ let browserState = {
   activeTabId: browserFirstTab.id,
   inShell: false,
   pending: null, // { op, url } queued while the surface is unmounted
+  picking: false, // 标注 (element-picking) armed on the active tab
+  toast: null, // { text, ok } transient notice under the toolbar
 }
 const browserListeners = new Set()
 function browserEmit() {
@@ -1044,6 +1057,205 @@ const browserStore = {
     browserEmit()
     return pending
   },
+  setPicking(picking) {
+    if (browserState.picking === picking) return
+    browserState = Object.assign({}, browserState, { picking })
+    browserEmit()
+  },
+  showToast(text, ok) {
+    browserState = Object.assign({}, browserState, { toast: { text: String(text), ok: ok === true } })
+    browserEmit()
+    if (browserToastTimer) clearTimeout(browserToastTimer)
+    browserToastTimer = setTimeout(() => { browserStore.dismissToast() }, 4000)
+  },
+  dismissToast() {
+    if (browserState.toast === null) return
+    browserState = Object.assign({}, browserState, { toast: null })
+    browserEmit()
+  },
+}
+
+// --- 标注 (element-picking) flow, ported from dsh-builtin-browser ----------
+// The vendored Selector editor runs entirely inside the guest page. Injection
+// differs by surface type: an Electron <webview> is scripted with
+// executeJavaScript (works cross-origin); a same-origin <iframe> gets the same
+// program via a <script> element (cross-origin frames are opaque and show a
+// toast). While armed, the host polls the guest outbox every 500ms; a finished
+// annotation writes the Design-Feedback markdown, which is queued into the
+// current session, then the editor is torn down.
+let browserToastTimer = null
+const OUTBOX_KEY = '__dshSelectorOutbox'
+const STYLE_ID = '__dsh_selector_style'
+const PICK_POLL_INTERVAL_MS = 500
+let pickPollTimer = null
+let pickSending = false
+let pickUnsubscribe = null
+
+function guardSlash(text) {
+  return text.startsWith('/') ? '\u200B\n' + text : text
+}
+
+/** Queue one Design-Feedback prompt into the current session. */
+async function pickerSendToSession(text) {
+  const sessions = pluginCtx.get('sessions')
+  if (!sessions) throw new Error('会话服务不可用')
+  const current = sessions.list.getSnapshot().current
+  if (current === undefined) throw new Error('没有活跃会话，请先新建会话')
+  const session = sessions.binding(current)?.session
+  if (!session) throw new Error('没有活跃会话，请先新建会话')
+  const result = await session.prompt([{ type: 'text', text: guardSlash(text) }], 'queue')
+  if (!result.ok) throw new Error(result.error.message)
+}
+
+function pickerHostSeed(tabId) {
+  const id = tabId === undefined || tabId === null ? 'null' : JSON.stringify(tabId)
+  return "window.__SELECTOR_HOST__ = { initialLang: 'zh', tabId: " + id + ", sendPrompt: function (text) { window." + OUTBOX_KEY + " = text; } };"
+}
+function pickerStyleInject() {
+  return '(function () { if (!document.getElementById(' + JSON.stringify(STYLE_ID) + ')) { var style = document.createElement("style"); style.id = ' + JSON.stringify(STYLE_ID) + '; style.textContent = ' + JSON.stringify(editorCss) + '; (document.head || document.documentElement).appendChild(style); } })();'
+}
+function pickerInjectionCode(tabId) {
+  return pickerHostSeed(tabId) + '\n' + pickerStyleInject() + '\n' + editorBundle
+}
+function pickerPollExpression() {
+  return '(function () { var text = window.' + OUTBOX_KEY + '; window.' + OUTBOX_KEY + ' = null; return { text: typeof text === "string" ? text : null, present: !!document.querySelector(".ai-editor-root") }; })()'
+}
+function pickerDestroyExpression() {
+  return 'if (window.__SELECTOR_DESTROY__) { window.__SELECTOR_DESTROY__(); }\nvar __dshStyle = document.getElementById(' + JSON.stringify(STYLE_ID) + ');\nif (__dshStyle) { __dshStyle.remove(); }'
+}
+
+/** Run `script` in the active tab's guest: webview via executeJavaScript
+ *  (no same-origin restriction — the guest is a real Chromium page), iframe
+ *  via a <script> element (the browser blocks cross-origin iframe access). */
+async function pickerRunScript(script, userGesture) {
+  const surface = browserStore.getSurface()
+  if (!surface) return
+  if (surface.executeJavaScript) {
+    await surface.executeJavaScript(script, userGesture === true)
+    return
+  }
+  const frame = surface
+  const doc = frame.contentDocument
+  if (!doc) throw new Error('浏览器安全策略禁止标注跨域页面（iframe 模式）；请使用 dsh-desktop 桌面端，或导航到同源页面')
+  const el = doc.createElement('script')
+  el.textContent = script
+  ;(doc.head || doc.documentElement).appendChild(el)
+  el.remove()
+}
+
+/** Read the outbox directly from a same-origin iframe; null when opaque. */
+function pickerPollFrame(frame) {
+  try {
+    const win = frame.contentWindow
+    if (!win || !win.document) return null
+    const text = win[OUTBOX_KEY]
+    win[OUTBOX_KEY] = null
+    return {
+      text: typeof text === 'string' ? text : null,
+      present: !!win.document.querySelector('.ai-editor-root'),
+    }
+  } catch (e) {
+    return null
+  }
+}
+
+/** Tear the editor down and leave picking mode (silent, no toast). */
+async function pickerStop() {
+  pickerStopPoll()
+  browserStore.setPicking(false)
+  const surface = browserStore.getSurface()
+  if (!surface) return
+  try {
+    if (surface.executeJavaScript) {
+      await surface.executeJavaScript(pickerDestroyExpression(), false)
+    } else {
+      const win = surface.contentWindow
+      if (win) {
+        if (typeof win.__SELECTOR_DESTROY__ === 'function') win.__SELECTOR_DESTROY__()
+        const style = win.document && win.document.getElementById(STYLE_ID)
+        if (style) style.remove()
+      }
+    }
+  } catch (e) { /* guest navigated away or was destroyed; nothing to tear down */ }
+}
+
+async function pickerStart() {
+  const surface = browserStore.getSurface()
+  if (!surface) return
+  try {
+    await pickerRunScript(pickerInjectionCode(browserStore.get().activeTabId), true)
+  } catch (err) {
+    browserStore.showToast(err instanceof Error ? err.message : String(err))
+    return
+  }
+  browserStore.setPicking(true)
+  pickerStartPoll()
+}
+
+function pickerToggle() {
+  if (browserStore.get().picking) void pickerStop()
+  else void pickerStart()
+}
+
+function pickerStartPoll() {
+  if (pickPollTimer) return
+  pickPollTimer = setInterval(() => { void pickerPollTick() }, PICK_POLL_INTERVAL_MS)
+}
+function pickerStopPoll() {
+  if (pickPollTimer) {
+    clearInterval(pickPollTimer)
+    pickPollTimer = null
+  }
+}
+
+async function pickerPollTick() {
+  if (pickSending || !browserStore.get().picking) return
+  const surface = browserStore.getSurface()
+  if (!surface) { void pickerStop(); return }
+  let polled = null
+  if (surface.executeJavaScript) {
+    try {
+      polled = await surface.executeJavaScript(pickerPollExpression(), false)
+    } catch (e) {
+      // Guest destroyed mid-navigation (manual nav while picking).
+      void pickerStop()
+      return
+    }
+  } else {
+    polled = pickerPollFrame(surface)
+    if (polled === null) { void pickerStop(); return }
+  }
+  if (polled && typeof polled.text === 'string' && polled.text.length > 0) {
+    await pickerHandleOutbox(polled.text)
+    return
+  }
+  if (polled && polled.present === false) {
+    // The editor vanished without our teardown (closed via its ✕, or a real
+    // navigation replaced the document). Exit silently.
+    void pickerStop()
+  }
+}
+
+async function pickerHandleOutbox(text) {
+  pickSending = true
+  try {
+    await pickerSendToSession(text)
+    await pickerStop()
+    browserStore.showToast('标注已发送给助手', true)
+  } catch (err) {
+    // Failure (no active session / RPC error): keep the editor, show the red toast.
+    browserStore.showToast(err instanceof Error ? err.message : String(err))
+  } finally {
+    pickSending = false
+  }
+}
+
+/** Subscribe once: closing the browser aborts an armed pick. */
+function pickerMount() {
+  if (pickUnsubscribe) return
+  pickUnsubscribe = browserStore.subscribe(() => {
+    if (!browserStore.get().open && browserStore.get().picking) void pickerStop()
+  })
 }
 
 // Page-side controller the Desktop shell drives via executeJavaScript
@@ -1260,6 +1472,10 @@ function BrowserSurface() {
   const [canGoBack, setCanGoBack] = React.useState(false)
   const [canGoForward, setCanGoForward] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
+  // Whether 标注 can reach the active tab's guest right now. Webview
+  // (Electron shell) can always be annotated; an iframe only when the page is
+  // same-origin (the browser forbids touching a cross-origin frame).
+  const [annotatable, setAnnotatable] = React.useState(true)
   const inShell = Boolean(typeof window !== 'undefined' && window.desktopBridge)
 
   React.useEffect(() => browserStore.subscribe(() => {
@@ -1267,6 +1483,22 @@ function BrowserSurface() {
     setState(next)
     setEditing((cur) => (cur && !next.tabs.some((t) => t.id === cur.id) ? null : cur))
   }), [])
+
+  const refreshAnnotatable = React.useCallback(() => {
+    const surf = browserStore.getSurface()
+    if (!surf) { setAnnotatable(false); return }
+    if (surf.executeJavaScript) { setAnnotatable(true); return }
+    try {
+      setAnnotatable(Boolean(surf.contentDocument))
+    } catch (e) {
+      // Cross-origin iframe: the parent cannot see its document.
+      setAnnotatable(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    refreshAnnotatable()
+  }, [state.activeTabId, refreshAnnotatable])
 
   const refreshNavState = React.useCallback(() => {
     const wv = browserStore.getSurface()
@@ -1295,7 +1527,7 @@ function BrowserSurface() {
     if (!inShell || wv.__dshPreviewBound) return
     wv.__dshPreviewBound = true
     const isActive = () => browserStore.get().activeTabId === tabId
-    wv.addEventListener('did-navigate', () => { if (isActive()) refreshNavState() })
+    wv.addEventListener('did-navigate', () => { if (isActive()) { refreshNavState(); void pickerStop() } })
     wv.addEventListener('did-navigate-in-page', () => { if (isActive()) refreshNavState() })
     wv.addEventListener('did-finish-load', () => { if (isActive()) { setLoading(false); refreshNavState() } })
     wv.addEventListener('did-start-loading', () => { if (isActive()) setLoading(true) })
@@ -1313,6 +1545,9 @@ function BrowserSurface() {
       setLoading(surf && surf.isLoading ? surf.isLoading() : false)
     } catch (e) { setLoading(false) }
   }, [state.activeTabId, refreshNavState])
+
+  // Leaving the browser view (or unmounting) aborts any armed pick.
+  React.useEffect(() => () => { void pickerStop() }, [])
 
   const navigate = React.useCallback((input) => {
     const url = toUrl(input)
@@ -1421,8 +1656,26 @@ function BrowserSurface() {
           'aria-label': '新建标签页',
         }, React.createElement(SvgIcon, { d: ICONS.plus, size: 13.5 })),
       ),
+      React.createElement('button', {
+        type: 'button',
+        className: 'dshbr-btn' + (state.picking ? ' dshbr-btn-picking' : ''),
+        style: state.picking ? { opacity: 1 } : undefined,
+        disabled: !annotatable,
+        onClick: () => pickerToggle(),
+        title: !annotatable
+          ? '当前页面为跨域 iframe，浏览器禁止标注；请使用 dsh-desktop 桌面端，或导航到同源页面'
+          : (state.picking ? '结束标注' : '标注页面元素（拾取发给助手）'),
+        'aria-label': state.picking ? '结束标注' : '标注页面元素',
+        'aria-pressed': state.picking,
+      }, React.createElement(SvgIcon, { d: ICONS.crosshair, size: 13.5 })),
     ),
-    state.tabs.map((tab) => {
+  state.toast
+    ? React.createElement('div', {
+      role: 'alert',
+      className: state.toast.ok ? 'dshbr-toast dshbr-toast-ok' : 'dshbr-toast',
+    }, state.toast.text)
+    : null,
+  state.tabs.map((tab) => {
       const hidden = tab.id === active.id ? {} : { display: 'none' }
       const bindRef = (el) => { bindSurface(tab.id)(el) }
       return inShell
@@ -1442,6 +1695,11 @@ function BrowserSurface() {
             if (browserStore.get().activeTabId !== tab.id) return
             setLoading(false)
             browserStore.setCurrent(tab.id, tab.address)
+            // A real navigation replaced the guest document: any injected
+            // editor is gone, so leave picking mode; the new page may also be
+            // cross-origin (iframe), which 标注 cannot reach.
+            if (browserStore.get().picking) void pickerStop()
+            refreshAnnotatable()
           },
           title: '内置浏览器',
           sandbox: 'allow-same-origin allow-scripts allow-forms allow-popups allow-downloads',
@@ -1581,6 +1839,9 @@ function apply(ctx) {
       browserStore.setInShell(true)
     }
   }
+
+  // 标注 pick flow: closing the browser aborts an armed pick.
+  pickerMount()
 
   // One level of the current session's cwd via the host fileReferences Remote.
   // relDir '' = root; any other value is a relative directory path.

@@ -19,9 +19,27 @@
 
 - `src/index.js` — Host 半边：空 apply（纯 UI 插件占位）。
 - `src/client/index.js` — Client 半边：重绘 `sidebar`（priority −1）+ 活动栏 + 会话工作区树 + 资源管理器（右键菜单：复制路径/复制相对路径/添加到会话 → 原生 `@file` chip）。会话面板同样带右键菜单：工作区行「复制路径」，会话行「分叉会话 / 归档会话」（与原版 ui-workspace 同一套 `sessions.fork` / `workspaces.archiveSession` 服务）。
-- `build.mjs` — 无工具链构建：把 client 源码包进 `window.__ModuleLoader__.load({id, factory})` 闭包工厂（`React` 由 `require('react')` 解析），产出 `lib/client.js`；`lib/index.js` 为 ESM 空 host。
+- `build.mjs` — 无工具链构建：把 client 源码包进 `window.__ModuleLoader__.load({id, factory})` 闭包工厂（`React` 由 `require('react')` 解析），产出 `lib/client.js`；`lib/index.js` 为 ESM 空 host。构建时还会把 `vendor/selector/` 里 vendored 的 Selector 编辑器（标注功能）读入 `editorBundle` / `editorCss` 两个字符串常量打进 bundle。
+- `vendor/selector/` — vendored [oil-oil/selector](https://github.com/oil-oil/selector)（MIT）标注编辑器快照：`editor.bundle.js` + `editor.css` + LICENSE/NOTICE。**不要手改**：从 dsh-builtin-browser 同目录同步。
 - `smoke.mjs` — 冒烟测试：加载闭包工厂、调用 `apply`（无 slots 早退 + 全量注册 5 个槽位）。
 - `cordis.patch.yml` — bundle 层：把本包插入 web-app client roster。
+
+## 内置浏览器的「标注」与预览态布局
+
+会话区的 预览 视图（`PreviewView` → `BrowserSurface`）在工具栏最右侧提供一个 **⌖ 标注** 按钮（拾取页面元素、加注释、一键「发送到会话」生成 Design Feedback markdown，由 vendored Selector 编辑器实现）：
+
+- **Electron 外壳内**（`window.desktopBridge` 存在，渲染 `<webview>`）：通过 `webview.executeJavaScript` 把编辑器注入 guest 页，跨域站点也能标注。
+- **普通浏览器**（渲染 `<iframe>`）：同源页面（含 about:blank / 本地页面）通过 `<script>` 元素注入；跨域页面不可标注，点击会显示红色提示。
+
+编辑器内点「发送到会话」后，生成的 markdown 会以排队 prompt 发进当前会话，标注自动结束。
+
+另外，当 预览 视图激活时（`.dshpv-root` 出现在会话滚动区内），底部输入框（composer）自动隐藏，把整块空间让给浏览器/文件预览；切回「对话」视图即恢复。该规则依赖会话外壳的稳定属性选择器：
+
+```css
+[data-conversation-scroll]:has(.dshpv-root) > [data-composer-seat] { display: none; }
+```
+
+> 注：`lib/client.js` 在 `.gitignore` 中，构建产物不入库；修改源码后重新 `node build.mjs` 即可（web 服务器按请求从磁盘读 bundle，刷新页面即生效）。
 
 ## 构建与安装
 
