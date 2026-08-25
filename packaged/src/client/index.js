@@ -133,7 +133,6 @@ const CSS = `
 .dshsb-menu{position:fixed;z-index:10000;min-width:160px;padding:4px;border-radius:8px;background:var(--dsw-alias-bg-overlay);border:1px solid var(--dsw-alias-border-l1);box-shadow:0 6px 20px rgba(0,0,0,.18);font-size:13px;color:var(--dsw-alias-label-primary)}
 .dshsb-menu-item{display:flex;align-items:center;gap:8px;width:100%;padding:6px 10px;border:none;border-radius:6px;background:transparent;cursor:pointer;color:var(--dsw-alias-label-secondary);text-align:left;font-size:13px;font-family:inherit}
 .dshsb-menu-item:hover{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}
-.dshsb-hint{flex:none;padding:3px 10px 6px;font-size:12px;color:var(--dsw-alias-state-warn-primary)}
 .dshpv-root{flex:1;min-height:0;display:flex;flex-direction:column;box-sizing:border-box;background:var(--dsw-alias-bg-base)}
 .dshpv-modetabs{flex:none;display:flex;align-items:center;gap:2px;padding:6px 10px;border-bottom:1px solid var(--dsw-alias-border-l1);box-sizing:border-box}
 .dshpv-filehead{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12.5px;color:var(--dsw-alias-label-secondary);opacity:.85;padding:0 2px}
@@ -160,6 +159,15 @@ const CSS = `
 .dshpv-md table{border-collapse:collapse;margin:.8em 0;font-size:13px}
 .dshpv-md th,.dshpv-md td{border:1px solid var(--dsw-alias-border-l1);padding:6px 10px;text-align:left}
 .dshpv-md th{background:var(--dsw-alias-bg-layer-1)}
+/* Floating preview overlay: used when the session is blank and the
+   conversation view ring (with the 预览 tab) is not rendered at all. */
+.dshpv-overlay{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35)}
+.dshpv-overlaybox{display:flex;flex-direction:column;width:min(720px,calc(100vw - 48px));height:min(560px,calc(100vh - 96px));border-radius:12px;background:var(--dsw-alias-bg-base);border:1px solid var(--dsw-alias-border-l2);box-shadow:0 12px 40px rgba(0,0,0,.25);overflow:hidden}
+.dshpv-overlayhead{flex:none;display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--dsw-alias-border-l1);box-sizing:border-box}
+.dshpv-overlaytitle{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary)}
+.dshpv-overlaynote{flex:none;font-size:11.5px;color:var(--dsw-alias-label-secondary);opacity:.8;white-space:nowrap}
+.dshpv-overlayclose{flex:none;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:none;border-radius:50%;padding:0;background:transparent;cursor:pointer;color:var(--dsw-alias-label-secondary)}
+.dshpv-overlayclose:hover{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}
 .dshbr-btn{display:flex;align-items:center;justify-content:center;flex:none;border:none;background:transparent;cursor:pointer;padding:4px;border-radius:50%;color:inherit;opacity:.85;transition:background-color 120ms ease,opacity 120ms ease}
 .dshbr-btn:hover:not(:disabled){background:rgba(77,107,254,.06);opacity:1}
 .dshbr-btn:disabled{opacity:.35;cursor:default}
@@ -779,15 +787,10 @@ function ExplorerPanel(props) {
   if (controllersRef.current === undefined) controllersRef.current = new Map()
   const controllers = controllersRef.current
 
-  // Transient hint (e.g. "preview needs an active session"); auto-clears.
-  const [hint, setHint] = React.useState(null)
-  const hintTimerRef = React.useRef()
-  const showHint = React.useCallback((msg) => {
-    setHint(msg)
-    if (hintTimerRef.current) clearTimeout(hintTimerRef.current)
-    hintTimerRef.current = setTimeout(() => setHint(null), 4000)
-  }, [])
-  React.useEffect(() => () => { if (hintTimerRef.current) clearTimeout(hintTimerRef.current) }, [])
+  // Floating preview fallback: set when a previewable file was opened while
+  // the conversation view ring is unavailable (blank new session). Rendered
+  // as a portal overlay; see PreviewOverlay.
+  const [overlayFile, setOverlayFile] = React.useState(null)
 
   const rootPath = React.useMemo(() => deriveRootPath(sessions), [sessions])
 
@@ -850,13 +853,15 @@ function ExplorerPanel(props) {
     const kind = previewableOf(abs)
     if (kind !== null) {
       previewStore.openFile(abs, kind)
-      // Blank sessions render no view tabs, so the preview view cannot be
-      // activated there — tell the user instead of failing silently.
-      if (!activatePreviewView()) showHint('预览需要先打开一个会话')
+      // A blank new session renders no conversation chrome at all (no view
+      // ring), so the 预览 tab cannot be activated there — open the same
+      // preview in a floating overlay instead of failing with a misleading
+      // "open a session first" hint.
+      if (!activatePreviewView()) setOverlayFile(previewStore.get().file)
     } else {
       props.openPath(abs).catch(() => {})
     }
-  }, [props, rootPath, showHint])
+  }, [props, rootPath])
   const refresh = React.useCallback(() => {
     for (const controller of controllers.values()) controller.abort()
     controllers.clear()
@@ -918,10 +923,10 @@ function ExplorerPanel(props) {
         React.createElement('div', { className: 'dshsb-emptyhint' }, '打开或新建一个会话后，这里会显示其工作目录。')))
   }
   return React.createElement('div', { className: 'dshsb-panelroot' }, header,
-    hint ? React.createElement('div', { className: 'dshsb-hint', role: 'status' }, hint) : null,
     React.createElement('div', { className: 'dshsb-tree', onScroll: closeMenu },
       React.createElement(DirectoryChildren, { path: '', depth: 0, view, load, abort, toggle, openFile, onContextMenu: openMenu })),
-    React.createElement(ExplorerMenu, { menu, rootPath, currentId: sessions.current, onClose: closeMenu }))
+    React.createElement(ExplorerMenu, { menu, rootPath, currentId: sessions.current, onClose: closeMenu }),
+    overlayFile ? React.createElement(PreviewOverlay, { file: overlayFile, onClose: () => setOverlayFile(null) }) : null)
 }
 
 // ---- preview feature: session-area 预览 view (file preview + built-in browser) ----
@@ -1382,6 +1387,43 @@ function PreviewView() {
   return React.createElement('div', { className: 'dshpv-root' },
     header,
     React.createElement(FilePreviewSurface, { file }))
+}
+
+// Floating fallback preview: a brand-new session is blank until its first
+// message, and while blank the harness renders no conversation chrome at all —
+// no header, no view ring, so the 预览 tab cannot be activated (previously we
+// surfaced the misleading hint "预览需要先打开一个会话" even though a session
+// IS open). When activation fails, show the same file preview in a modal
+// overlay instead, portaled to <body> so no ancestor transform can clip it.
+// `ReactDOM` is a closure symbol provided by the build wrapper
+// (require('react-dom'), same as `React`).
+function PreviewOverlay({ file, onClose }) {
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+  const panel = React.createElement('div', {
+    className: 'dshpv-overlay',
+    onMouseDown: (e) => { if (e.target === e.currentTarget) onClose() },
+  },
+    React.createElement('div', { className: 'dshpv-overlaybox', role: 'dialog', 'aria-modal': 'true', 'aria-label': '文件预览' },
+      React.createElement('div', { className: 'dshpv-overlayhead' },
+        React.createElement('span', { className: 'dshpv-overlaytitle' }, file ? file.name : '预览'),
+        React.createElement('span', { className: 'dshpv-overlaynote' }, '新会话尚无对话内容，预览以浮窗打开；发送消息后可在会话内「预览」视图查看'),
+        React.createElement('button', {
+          type: 'button',
+          className: 'dshpv-overlayclose',
+          onClick: onClose,
+          autoFocus: true,
+          'aria-label': '关闭预览',
+        }, React.createElement(SvgIcon, { d: ICONS.x, size: 14 }))),
+      React.createElement(FilePreviewSurface, { file })))
+  if (typeof ReactDOM !== 'undefined' && ReactDOM && typeof ReactDOM.createPortal === 'function' && typeof document !== 'undefined') {
+    return ReactDOM.createPortal(panel, document.body)
+  }
+  return panel
 }
 
 // 内置浏览器 view: wraps BrowserSurface in the shared .dshpv-root chrome so

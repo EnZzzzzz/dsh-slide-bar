@@ -54,6 +54,8 @@
 [data-conversation-scroll]:has(.dshpv-root) > [data-composer-seat] { display: none; }
 ```
 
+> **空会话预览**：全新会话（尚未发送首条消息）处于 blank 态，harness 不渲染会话头部与视图环，「预览」tab 在 DOM 中不存在。此时在资源管理器中打开可预览文件，会改为**浮窗预览**（`PreviewOverlay`，portal 到 `body`，复用同一 `FilePreviewSurface`），并提示发送消息后可在会话内「预览」视图继续查看——不再出现误导性的「预览需要先打开一个会话」。非空会话仍走视图环激活（浮窗仅在激活失败时兜底）。
+
 > 注：`lib/client.js` 在 `.gitignore` 中，构建产物不入库；修改源码后重新 `node build.mjs` 即可（web 服务器按请求从磁盘读 bundle，刷新页面即生效）。
 
 ## 构建与安装

@@ -27,6 +27,9 @@ const client = `window.__ModuleLoader__.load({
     var exports = module.exports;
     Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
     const React = require('react');
+    // react-dom is resolved from the loader module table (the shipped
+    // ui-attachment bundle requires it), used by PreviewOverlay's portal.
+    const ReactDOM = require('react-dom');
     // The browser core (dsh-builtin-browser/client) is NOT required here at
     // materialization time: client entries boot in parallel, so a sync require
     // can race the core's registration and fail the whole boot. Instead apply()
