@@ -1776,36 +1776,6 @@ function PreviewView() {
   return React.createElement('div', { className: 'dshpv-root' }, header, body)
 }
 
-function FooterBrowserToggle(props) {
-  const wide = !!props.wide
-  const [open, setOpen] = React.useState(browserStore.get().open)
-  React.useEffect(() => browserStore.subscribe(() => setOpen(browserStore.get().open)), [])
-  const label = open ? '关闭浏览器' : '内置浏览器'
-  return React.createElement('button', {
-    type: 'button',
-    onClick: () => {
-      if (open) {
-        previewStore.setMode('file')
-        browserStore.setOpen(false)
-      } else {
-        previewStore.setMode('browser')
-        browserStore.setOpen(true)
-        activatePreviewView()
-      }
-    },
-    title: label,
-    'aria-label': label,
-    'aria-pressed': open,
-    style: {
-      display: 'flex', alignItems: 'center', justifyContent: wide ? 'flex-start' : 'center',
-      gap: 6, width: '100%', border: 'none', background: open ? 'rgba(127,127,127,0.18)' : 'transparent',
-      cursor: 'pointer', padding: wide ? '6px 10px' : '6px', borderRadius: 8, color: 'inherit', fontSize: 14,
-    },
-  },
-    React.createElement(SvgIcon, { d: ICONS.globe, size: 16 }),
-    wide ? React.createElement('span', null, label) : null)
-}
-
 // ---- plugin apply ----
 function apply(ctx) {
   pluginCtx = ctx
@@ -1892,13 +1862,17 @@ function apply(ctx) {
       order: 10,
       priority: -1,
     }, () => null)))
-    // Replace the built-in sidebar toggle with one that opens the session-area browser.
+    // Suppress the built-in sidebar footer browser toggle: the browser lives in
+    // the session-area 预览 view (opened via the 预览 header tab / the 内置浏览器
+    // mode tab, or automatically by the agent's browser_* tools). dsh-builtin-browser
+    // registers the SAME slot id, so an empty same-id entry at a higher priority
+    // keeps its button from resurfacing (same mechanism as the overlay above).
     disposers.push(slots.inject('sidebar.footer.action', () => slots.register({
       name: 'sidebar.footer.action',
       id: 'builtin-browser',
       order: 10,
       priority: -1,
-    }, FooterBrowserToggle)))
+    }, () => null)))
     return () => {
       for (const d of disposers) {
         try { if (typeof d === 'function') d() } catch (e) { /* noop */ }
