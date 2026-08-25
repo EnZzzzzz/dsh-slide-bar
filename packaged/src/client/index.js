@@ -1794,6 +1794,29 @@ function apply(ctx) {
     }
   }
 
+  // Clicking an http(s) link anywhere in the harness GUI opens it in the
+  // in-session 内置浏览器 view. Chat markdown renders URLs with
+  // target="_blank", so the click would become window.open — the Desktop
+  // shell denies loopback URLs outright (preview links appear dead) and sends
+  // the rest to the system browser. Modifier-click keeps the default action.
+  const onDocLinkClick = (event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    const target = event.target
+    if (!(target instanceof Element)) return
+    const anchor = target.closest('a[href]')
+    if (!anchor) return
+    const href = anchor.getAttribute('href') || ''
+    if (!/^https?:\/\//i.test(href)) return
+    // Never hijack links inside a dialog (e.g. the plugin's own UI).
+    const dialog = anchor.closest('[role="dialog"]')
+    if (dialog && dialog.getAttribute('aria-label') === '内置浏览器') return
+    event.preventDefault()
+    event.stopPropagation()
+    void pageBrowserController.command({ op: 'navigate', url: href })
+  }
+  document.addEventListener('click', onDocLinkClick, true)
+  ctx.effect(() => () => document.removeEventListener('click', onDocLinkClick, true))
+
   // 标注 pick flow: closing the browser aborts an armed pick.
   pickerMount()
 

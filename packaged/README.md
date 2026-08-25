@@ -30,6 +30,7 @@
 
 - **预览** = 纯文件预览（`PreviewView` → `FilePreviewSurface`）。
 - **内置浏览器** = 独立的同级视图（`BrowserView` → `BrowserSurface`），agent 调 `browser_*` 工具时自动切过来。
+- **对话/页面里的 `http(s)` 链接，单击即在此视图打开**：Client 半区在 document 上挂了一个 capture 阶段 click 拦截（`onDocLinkClick`），左键单击（无修饰键）命中绝对 `http(s)` 链接时 `preventDefault` 并调用本插件的浏览器控制器 `navigate`，自动切到「内置浏览器」视图并加载该地址。原因：对话 markdown 渲染的链接带 `target="_blank"`，单击会走 `window.open`，而 Desktop 外壳对 `127.0.0.1` 回环地址直接拒绝（预览链接点击无反应）、其余地址丢给系统浏览器。按住 ⌘/Ctrl 等修饰键则保留默认行为。
 
 内置浏览器工具栏最右侧有一个 **⌖ 标注** 按钮（拾取页面元素、加注释、一键「发送到会话」生成 Design Feedback markdown，由 vendored Selector 编辑器实现）：
 
