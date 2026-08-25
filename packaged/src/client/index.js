@@ -1275,7 +1275,9 @@ function BrowserSurface() {
         type: 'button',
         className: 'dshbr-btn' + (state.picking ? ' dshbr-btn-picking' : ''),
         style: state.picking ? { opacity: 1 } : undefined,
-        disabled: !annotatable,
+        // Always clickable: an unclickable toolbar button reads as broken.
+        // When the page cannot be annotated (cross-origin iframe), the shared
+        // core's startPicking shows the reason as a toast instead.
         onClick: () => togglePicking(),
         title: !annotatable
           ? '当前页面为跨域 iframe，浏览器禁止标注；请使用 dsh-desktop 桌面端，或导航到同源页面'
