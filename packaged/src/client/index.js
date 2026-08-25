@@ -163,10 +163,12 @@ const CSS = `
 .dshbr-btn{display:flex;align-items:center;justify-content:center;flex:none;border:none;background:transparent;cursor:pointer;padding:4px;border-radius:50%;color:inherit;opacity:.85;transition:background-color 120ms ease,opacity 120ms ease}
 .dshbr-btn:hover:not(:disabled){background:rgba(77,107,254,.06);opacity:1}
 .dshbr-btn:disabled{opacity:.35;cursor:default}
-.dshbr-tab{display:flex;align-items:center;gap:6px;box-sizing:border-box;flex:1 1 auto;min-width:88px;max-width:132px;overflow:hidden;padding:3px 6px 3px 10px;border:1px solid rgba(127,127,127,.3);border-radius:9px;background:var(--dsw-alias-bg-base);box-shadow:0 1px 2px rgba(0,0,0,.05);cursor:pointer;color:inherit;font-size:12.5px;transition:background-color 120ms ease,box-shadow 120ms ease,border-color 120ms ease,max-width 240ms ease-in-out;user-select:none}
+.dshbr-tab{display:flex;align-items:center;gap:6px;box-sizing:border-box;flex:1 1 auto;min-width:88px;max-width:132px;overflow:hidden;padding:3px 6px 3px 10px;border:1px solid rgba(127,127,127,.3);border-radius:9px;background:var(--dsw-alias-bg-base);box-shadow:0 1px 2px rgba(0,0,0,.05);cursor:pointer;color:inherit;font-size:12.5px;transition:background-color 120ms ease,box-shadow 120ms ease,border-color 120ms ease,flex-basis 240ms cubic-bezier(.16,.6,.3,1),max-width 240ms cubic-bezier(.16,.6,.3,1);user-select:none}
 .dshbr-tab:hover{background:rgba(77,107,254,.06)}
 .dshbr-tab.active{border-color:rgba(127,127,127,.45);box-shadow:0 1px 3px rgba(0,0,0,.09)}
-.dshbr-tab.editing{cursor:text;flex-basis:220px;max-width:260px}
+/* 快进慢出：展开（进入编辑）与收起（失焦回缩）都用快速起步、缓收尾的曲线；
+   收起比展开稍长，尾巴更柔和。flex-basis 必须一并过渡，否则收起会瞬间跳变。 */
+.dshbr-tab.editing{cursor:text;flex-basis:220px;max-width:260px;transition:background-color 120ms ease,box-shadow 120ms ease,border-color 120ms ease,flex-basis 180ms cubic-bezier(.16,.6,.3,1),max-width 180ms cubic-bezier(.16,.6,.3,1)}
 .dshbr-tab-title{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;opacity:.55;transition:opacity 120ms ease}
 .dshbr-tab:hover .dshbr-tab-title{opacity:.85}
 .dshbr-tab.active .dshbr-tab-title,.dshbr-tab.active:hover .dshbr-tab-title{opacity:1}
@@ -1556,9 +1558,14 @@ function BrowserSurface() {
 
   const commitEdit = React.useCallback((tabId, value) => {
     setEditing(null)
-    if (!(value || '').trim()) return
+    const text = (value || '').trim()
+    if (!text) return
+    const tab = browserStore.get().tabs.find((t) => t.id === tabId)
+    // 单击编辑模式下 blur 会频繁触发（切标签/点页面空白）；地址没变化就不
+    // 重复导航，避免切换标签时把页面重新加载一遍。
+    if (tab && tab.current && text === tab.current) return
     browserStore.activateTab(tabId)
-    navigate(value)
+    navigate(text)
   }, [navigate])
 
   const goBack = React.useCallback(() => { const s = browserStore.getSurface(); if (s && s.goBack) s.goBack() }, [])
@@ -1596,9 +1603,10 @@ function BrowserSurface() {
             'aria-selected': tab.id === active.id,
             tabIndex: 0,
             className: 'dshbr-tab' + (tab.id === active.id ? ' active' : '') + (isEditing ? ' editing' : ''),
-            title: isEditing ? undefined : (tab.current || '新标签页，双击编辑地址'),
-            onClick: () => browserStore.activateTab(tab.id),
-            onDoubleClick: () => {
+            title: isEditing ? undefined : (tab.current || '新标签页，单击编辑地址'),
+            // 单击即进入地址编辑（标签即地址栏）：切到该标签并打开编辑器，
+            // 文本自动全选，直接输入即可替换。
+            onClick: () => {
               browserStore.activateTab(tab.id)
               setEditing({ id: tab.id, value: tab.address || tab.current || '' })
             },
