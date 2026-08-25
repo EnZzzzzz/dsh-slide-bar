@@ -1,15 +1,14 @@
 # dsh-slide-bar
 
-dsh Web UI 插件：VSCode 式左侧边栏，含「会话」面板（**继承 dsh 原版会话管理面板**）与「资源管理器」文件树面板。它向侧边栏外壳（`sidebar.activity` + `sidebar.panel` 槽位）注册两对条目：聊天图标 + 原版会话面板（id `sessions`），文件夹图标 + 文件树面板（id `explorer`）。两个目标槽位由外壳的 apply 声明，因此本插件通过 `slots.inject()` 跟随每次声明生命周期注册，重声明后自动重注册。
+dsh Web UI 插件：VSCode 式左侧边栏的「会话」面板（**继承 dsh 原版会话管理面板**）。它向侧边栏外壳（`sidebar.activity` + `sidebar.panel` 槽位）注册一条条目：聊天图标 + 原版会话面板（id `sessions`）。目标槽位由外壳（本仓库 `packaged/` 的 `dsh-sidebar-live` bundle 声明的活动栏外壳）的 apply 声明，因此本插件通过 `slots.inject()` 跟随每次声明生命周期注册，重声明后自动重注册。
+
+> 资源管理器文件树面板不在本包中：它由 `packaged/`（`dsh-sidebar-live`）独占注册（带文件预览 + 内置浏览器），本包只负责把**原版完整会话面板**带回来。
 
 ## 功能
 
 - **继承原版会话面板（fork 自 `@deepseek-ai/dsh-client-ui-workspace`）**：搜索、工作区分组 / 单列视图、拖拽排序、工作区 / 会话重命名、右键菜单（分叉会话 / 归档会话 / 重命名 / 删除工作区），并在工作区（文件夹）右键菜单上扩展了「**复制路径**」（复制该文件夹的绝对路径）。会话面板按工作区分组展示，未分组会话归入「未分组」。
-- **文件树浏览**：以当前会话记录的工作目录（`cwd`）为根，无会话时回退到最近工作区的路径；两者都没有时显示空状态提示。
-- **按需加载**：每展开一个目录才调用一次 `ctx.workspaces.listDirectory(path, { includeFiles: true })`，只拉取该层；每个路径最多一个在途请求，被取代/折叠/刷新/卸载时通过 `AbortController` 取消。
-- **持久化视图状态**：展开状态、单层列表缓存、截断标记、隐藏文件开关保存在 localStorage（`dsh.explorer.view.v1`），重载后恢复；失败的层显示内联「重试」，不会在每次渲染时自动重试。
-- **只读操作**：文件行点击调用 `ctx.workspaces.openPath` 用系统默认程序打开；不提供新建/重命名/删除等写操作。
-- **双语界面**：中文 / 英文词典（`explorer` 与 `sidebar.sessions` 命名空间）。
+- **注册优先级 −2**：dsh-sidebar-live 的轻量会话面板（priority −1）被本面板（−2，低者胜出）影子掉，呈现完整原版功能。
+- **双语界面**：中文 / 英文词典（`sidebar.sessions` 命名空间）。
 
 ## 继承原版会话面板（src/client/workspace/）
 
@@ -20,11 +19,13 @@ dsh Web UI 插件：VSCode 式左侧边栏，含「会话」面板（**继承 ds
 3. **词典命名空间**：`workspace` → `sidebar.sessions`（内置 ui-workspace 已注册 `workspace` zh/en，locale 服务拒绝重复 (ns, locale)，fork 必须用自己的命名空间）。
 4. **工作区行右键菜单新增「复制路径」**（`menu.copyPath` + `copyPath` action → `writeClipboard(group.cwd)`）。
 
+> 本包不再注册资源管理器（`ExplorerPanel` / `ExplorerActivityIcon`）：早期版本同时注册 explorer（order 10）时与 `packaged/` 的资源管理器抢占 `sidebar.panel` 槽位且无预览拦截，曾导致双击文件直接走系统打开。恢复原版会话面板的正确姿势是「移除本包 explorer 注册 + 重新加入本包」，即当前状态。
+
 ## 安装
 
 本包是独立的外部 dsh bundle（`dsh.bundle.patch` 指向 `cordis.patch.yml`，其中 `- insert:` 行把插件插入 web-app 的 client roster）。
 
-先构建产物，再用 dsh CLI 装进 web profile：
+先构建产物，再装进 web profile（**与 `packaged/` 的 `dsh-sidebar-live` 并存**）：
 
 ```sh
 pnpm install
@@ -37,14 +38,14 @@ pnpm dsh plugin --profile web add link:/path/to/dsh-slide-bar/plugin
 
 `dsh plugin add` 会把本包以 `link:` 依赖写入 `$DSH_HOME/profiles/web/package.json`，并因为包声明了 `dsh.bundle` 而把 `dsh-slide-bar` 追加到 profile 的 `dsh.profile.bundles` 列表 —— 下次启动 `dsh web` 时 cordis.patch.yml 层自动生效。
 
-手工方式（不用 CLI）：在 `$DSH_HOME/profiles/web/package.json` 的 `dependencies` 里加 `"dsh-slide-bar": "link:/path/to/dsh-slide-bar"`，在 `dsh.profile.bundles` 数组末尾追加 `"dsh-slide-bar"`。
+手工方式（不用 CLI）：在 `$DSH_HOME/profiles/web/package.json` 的 `dependencies` 里加 `"dsh-slide-bar": "link:/path/to/dsh-slide-bar/plugin"`，在 `dsh.profile.bundles` 数组末尾追加 `"dsh-slide-bar"`。
 
 ## 开发
 
 ```sh
 pnpm install          # 链接 dsh 仓库的接口包（link: devDependencies）并安装工具链
 pnpm run bundle       # tsc 产出 lib/types，tsdown 产出 lib/index.js、lib/invariant.js、lib/client.js
-pnpm vitest run       # 36 个单元测试（jsdom 由各 spec 首行 pragma 指定）
+pnpm vitest run       # 单元测试（jsdom 由各 spec 首行 pragma 指定）
 pnpm run typecheck    # 仅类型检查
 ```
 
@@ -56,10 +57,9 @@ pnpm run typecheck    # 仅类型检查
 
 ## 面板行为
 
-面板根据外壳的 `activePanelId` owner prop 自门控：其他面板激活时渲染 null。树的数据动词（listDirectory / openPath）通过注册时的 inject 面传入，组件只见 props 不见 ctx。Host 返回的条目已排好序（目录在前、文件在后，各自按名称排序），客户端不重排，只按 Host 的 hidden 标记过滤（头部开关可显示隐藏文件）。被 Host 在完整结果上界处截断的层会在末尾显示「仅显示部分内容」提示。头部「刷新」保留展开状态、丢弃列表缓存和错误标记，从而重新拉取所有仍展开的层。
+面板根据外壳的 `activePanelId` owner prop 自门控：其他面板激活时渲染 null。注册优先级 −2 影子掉 dsh-sidebar-live 的轻量会话面板（−1），所以「会话」图标点开后呈现的是原版完整面板（搜索 / 分组 / 拖拽 / 重命名 / 分叉 / 归档 / 文件夹复制路径）。
 
 ## 已知限制
 
-- 文件只能在系统默认程序中打开，没有应用内编辑器或预览。
-- 没有文件系统监听：外部改动要等手动刷新、展开未缓存目录或重挂载后才可见。
-- 面板只读：不提供创建/重命名/删除/移动等文件操作。
+- 依赖外壳（`packaged/` 的 dsh-sidebar-live）声明 `sidebar.activity` / `sidebar.panel` 槽位；单独安装本包（无外壳）时没有注册入口，面板不会出现。
+- 目录流槽位（`sidebar.panel.sessions.directoryFlow`）当前没有占用者，因此「添加工作区…」入口不出现（与原版 ui-workspace 无 picker 包时的行为一致）。

@@ -24,6 +24,9 @@ importers:
       '@deepseek-ai/dsh-client-test-runtime':
         specifier: link:/Volumes/DataDrive/proj/public/deepseek-harness/packages/test-support/client-runtime
         version: link:../../../public/deepseek-harness/packages/test-support/client-runtime
+      '@deepseek-ai/dsh-client-ui-conversation':
+        specifier: link:/Volumes/DataDrive/proj/public/deepseek-harness/packages/client/ui-conversation
+        version: link:../../../public/deepseek-harness/packages/client/ui-conversation
       '@deepseek-ai/dsh-client-ui-primitives':
         specifier: link:/Volumes/DataDrive/proj/public/deepseek-harness/packages/client/ui-primitives
         version: link:../../../public/deepseek-harness/packages/client/ui-primitives

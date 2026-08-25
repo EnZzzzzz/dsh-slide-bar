@@ -19,6 +19,8 @@
 
 - `src/index.js` — Host 半边：空 apply（纯 UI 插件占位）+ `/preview-fs` RPC（资源管理器/预览视图读目录与文件）。
 - `src/client/index.js` — Client 半边：重绘 `sidebar`（priority −1）+ 活动栏 + 会话工作区树 + 资源管理器（右键菜单：复制路径/复制相对路径/添加到会话 → 原生 `@file` chip）+ 会话区「预览 / 内置浏览器」视图。**浏览器本体不再是本包的一部分**：内置浏览器引擎（store / 控制器 / 标注流程）由 `dsh-builtin-browser` 提供，本包只渲染会话区视图并通过 `ctx.modules.import('dsh-builtin-browser/client')` 异步取用共享核心（详见下方「与 dsh-builtin-browser 的关系」）。
+
+> **会话面板恢复为继承版**：本包的轻量会话面板注册为 priority −1，`dsh-slide-bar`（TS 包）的**继承原版 ui-workspace 会话面板**注册为 −2（低者胜出）并影子掉它，因此「会话」面板呈现原版完整功能（搜索 / 分组 / 拖拽 / 重命名 / 分叉 / 归档 / 文件夹复制路径）；本包的轻量会话面板成为不活跃的影子条目，仅在本包单独安装时可见。TS 包已移除 explorer 注册，资源管理器仍由本包独占。
 - `build.mjs` — 无工具链构建：把 client 源码包进 `window.__ModuleLoader__.load({id, factory})` 闭包工厂（`React` 由 `require('react')` 解析，浏览器核心**不在 factory 顶层 require**——client 条目并行启动，同步 require 会竞态；改由 `apply()` 里 `ctx.modules.import()` 异步解析，再把模块级绑定赋给视图），产出 `lib/client.js`；`lib/index.js` 为 ESM host。
 - `vendor/selector/` — 保留的 vendored [oil-oil/selector](https://github.com/oil-oil/selector)（MIT）快照（**不再打进 bundle**，标注编辑器随核心包走）。
 - `smoke.mjs` — 冒烟测试：加载闭包工厂、调用 `apply`（无 slots 早退 + 全量注册 9 个槽位），stub 掉 `ctx.modules.import` 的核心。
@@ -74,7 +76,7 @@ node smoke.mjs          # 冒烟测试
 ## 注意
 
 - **重启后生效**：web-app 在启动时扫描 profile bundles；本次会话里的动态插件 `slide-1` 会在重启后消失（进程级），由本包接管侧边栏。
-- profile 里原有的 `dsh-slide-bar`（原 TS 包）保持安装；它的 `slots.inject('sidebar.activity'/'sidebar.panel')` 会在本包声明槽位后注册同 id 的 explorer（priority 0），被本包（priority −1）影子掉，不产生冲突；如不需要可自行从 profile 移除。
-- **已从 profile 移除 `dsh-slide-bar`（TS 包）**：它的 explorer（order 10）与资源管理器抢占 `sidebar.panel` 槽位且无预览拦截，曾导致双击文件直接走系统打开。侧边栏面板现由本包独占（会话轻量面板 + 预览版资源管理器）。如要恢复原版完整会话面板，需先移除 TS 包里的 explorer 注册再重新加入。
+- profile 里原有的 `dsh-slide-bar`（原 TS 包）保持安装；它只注册 `sessions` 面板（priority −2），被本包（−1）声明槽位后接管会话面板，不产生冲突；如不需要可自行从 profile 移除。
+- **会话面板由 `dsh-slide-bar` 继承版接管**：TS 包的 sessions 注册为 priority −2（低者胜出），影子掉本包的轻量会话面板（−1），呈现完整原版功能（搜索 / 分组 / 拖拽 / 重命名 / 分叉 / 归档 / 文件夹复制路径）。TS 包的 explorer 注册已移除——它的 explorer（order 10）曾与资源管理器抢占 `sidebar.panel` 槽位且无预览拦截，导致双击文件直接走系统打开，因此资源管理器现由本包独占。
 - 树根仅支持当前会话 cwd；无当前会话时显示空态提示。
 - 目录数据经 `fileReferences.list` 有 `maxResults` 上界，超出会截断并显示「仅显示部分内容」。
