@@ -925,9 +925,13 @@ function ExplorerPanel(props) {
 }
 
 // ---- preview feature: session-area 预览 view (file preview + built-in browser) ----
-// Ported from the runtime-preview dynamic plugin; the browser engine mirrors
-// dsh-builtin-browser's store/controller so the agent's browser_* tools keep
-// working (window.__dshBrowser points at our controller).
+// Ported from the runtime-preview dynamic plugin. The browser is NOT owned
+// here anymore: dsh-builtin-browser is the shared browser core (store +
+// controller + pick flow), bound in build.mjs as `builtinBrowser` closure
+// symbols (browserStore / pageBrowserController / BLANK_PAGE / setOpenHandler
+// / togglePicking / stopPicking). This file only renders the in-session 内置
+//浏览器 view against that engine and switches the conversation view to it via
+// setOpenHandler.
 
 // --- preview store: the file open in the 预览 (file preview) view ---
 let previewState = { file: null }
@@ -961,398 +965,6 @@ function activateViewByLabel(label) {
 function activatePreviewView() { return activateViewByLabel('预览') }
 function activateBrowserView() { return activateViewByLabel('内置浏览器') }
 
-// --- built-in browser engine (ported from dsh-builtin-browser store.ts) ---
-const BLANK_PAGE = 'about:blank'
-const browserSurfaces = new Map()
-let browserNextTabId = 1
-function blankBrowserTab() { return { id: browserNextTabId++, address: '', current: '', title: '' } }
-const browserFirstTab = blankBrowserTab()
-let browserState = {
-  open: false,
-  tabs: [browserFirstTab],
-  activeTabId: browserFirstTab.id,
-  inShell: false,
-  pending: null, // { op, url } queued while the surface is unmounted
-  picking: false, // 标注 (element-picking) armed on the active tab
-  toast: null, // { text, ok } transient notice under the toolbar
-}
-const browserListeners = new Set()
-function browserEmit() {
-  for (const l of browserListeners) { try { l() } catch (e) {} }
-}
-function browserActiveTab() {
-  return browserState.tabs.find((t) => t.id === browserState.activeTabId) || browserState.tabs[0]
-}
-function browserUpdateTab(id, patch) {
-  const tab = browserState.tabs.find((t) => t.id === id)
-  if (!tab) return
-  const next = Object.assign({}, tab, patch)
-  if (next.address === tab.address && next.current === tab.current && next.title === tab.title) return
-  browserState = Object.assign({}, browserState, { tabs: browserState.tabs.map((t) => (t.id === id ? next : t)) })
-  browserEmit()
-}
-const browserStore = {
-  get() { return browserState },
-  getActiveTab() { return browserActiveTab() },
-  subscribe(listener) { browserListeners.add(listener); return () => browserListeners.delete(listener) },
-  setOpen(open) {
-    if (browserState.open === open) return
-    browserState = Object.assign({}, browserState, { open })
-    browserEmit()
-  },
-  addTab() {
-    const tab = blankBrowserTab()
-    browserState = Object.assign({}, browserState, { tabs: browserState.tabs.concat(tab), activeTabId: tab.id })
-    browserEmit()
-    return tab.id
-  },
-  closeTab(id) {
-    browserSurfaces.delete(id)
-    let tabs = browserState.tabs.filter((t) => t.id !== id)
-    if (tabs.length === 0) tabs = [blankBrowserTab()]
-    const idx = browserState.tabs.findIndex((t) => t.id === id)
-    const activeTabId = browserState.activeTabId === id
-      ? (tabs[Math.min(idx, tabs.length - 1)] || tabs[0]).id
-      : browserState.activeTabId
-    browserState = Object.assign({}, browserState, { tabs, activeTabId })
-    browserEmit()
-  },
-  activateTab(id) {
-    if (browserState.activeTabId === id || !browserState.tabs.some((t) => t.id === id)) return
-    browserState = Object.assign({}, browserState, { activeTabId: id })
-    browserEmit()
-  },
-  setAddress(address) { browserUpdateTab(browserActiveTab().id, { address }) },
-  setCurrent(id, current) {
-    const tab = browserState.tabs.find((t) => t.id === id)
-    if (!tab) return
-    browserUpdateTab(id, { current, address: current || tab.address })
-  },
-  setTitle(id, title) { browserUpdateTab(id, { title }) },
-  setInShell(inShell) {
-    if (browserState.inShell === inShell) return
-    browserState = Object.assign({}, browserState, { inShell })
-    browserEmit()
-  },
-  setSurface(tabId, el) {
-    if (el) browserSurfaces.set(tabId, el)
-    else browserSurfaces.delete(tabId)
-  },
-  getSurface() { return browserSurfaces.get(browserActiveTab().id) || null },
-  setPendingCommand(pending) {
-    browserState = Object.assign({}, browserState, { pending })
-    browserEmit()
-  },
-  takePendingCommand() {
-    if (!browserState.pending) return null
-    const pending = browserState.pending
-    browserState = Object.assign({}, browserState, { pending: null })
-    browserEmit()
-    return pending
-  },
-  setPicking(picking) {
-    if (browserState.picking === picking) return
-    browserState = Object.assign({}, browserState, { picking })
-    browserEmit()
-  },
-  showToast(text, ok) {
-    browserState = Object.assign({}, browserState, { toast: { text: String(text), ok: ok === true } })
-    browserEmit()
-    if (browserToastTimer) clearTimeout(browserToastTimer)
-    browserToastTimer = setTimeout(() => { browserStore.dismissToast() }, 4000)
-  },
-  dismissToast() {
-    if (browserState.toast === null) return
-    browserState = Object.assign({}, browserState, { toast: null })
-    browserEmit()
-  },
-}
-
-// --- 标注 (element-picking) flow, ported from dsh-builtin-browser ----------
-// The vendored Selector editor runs entirely inside the guest page. Injection
-// differs by surface type: an Electron <webview> is scripted with
-// executeJavaScript (works cross-origin); a same-origin <iframe> gets the same
-// program via a <script> element (cross-origin frames are opaque and show a
-// toast). While armed, the host polls the guest outbox every 500ms; a finished
-// annotation writes the Design-Feedback markdown, which is queued into the
-// current session, then the editor is torn down.
-let browserToastTimer = null
-const OUTBOX_KEY = '__dshSelectorOutbox'
-const STYLE_ID = '__dsh_selector_style'
-const PICK_POLL_INTERVAL_MS = 500
-let pickPollTimer = null
-let pickSending = false
-let pickUnsubscribe = null
-
-function guardSlash(text) {
-  return text.startsWith('/') ? '\u200B\n' + text : text
-}
-
-/** Queue one Design-Feedback prompt into the current session. */
-async function pickerSendToSession(text) {
-  const sessions = pluginCtx.get('sessions')
-  if (!sessions) throw new Error('会话服务不可用')
-  const current = sessions.list.getSnapshot().current
-  if (current === undefined) throw new Error('没有活跃会话，请先新建会话')
-  const session = sessions.binding(current)?.session
-  if (!session) throw new Error('没有活跃会话，请先新建会话')
-  const result = await session.prompt([{ type: 'text', text: guardSlash(text) }], 'queue')
-  if (!result.ok) throw new Error(result.error.message)
-}
-
-function pickerHostSeed(tabId) {
-  const id = tabId === undefined || tabId === null ? 'null' : JSON.stringify(tabId)
-  return "window.__SELECTOR_HOST__ = { initialLang: 'zh', tabId: " + id + ", sendPrompt: function (text) { window." + OUTBOX_KEY + " = text; } };"
-}
-function pickerStyleInject() {
-  return '(function () { if (!document.getElementById(' + JSON.stringify(STYLE_ID) + ')) { var style = document.createElement("style"); style.id = ' + JSON.stringify(STYLE_ID) + '; style.textContent = ' + JSON.stringify(editorCss) + '; (document.head || document.documentElement).appendChild(style); } })();'
-}
-function pickerInjectionCode(tabId) {
-  return pickerHostSeed(tabId) + '\n' + pickerStyleInject() + '\n' + editorBundle
-}
-function pickerPollExpression() {
-  return '(function () { var text = window.' + OUTBOX_KEY + '; window.' + OUTBOX_KEY + ' = null; return { text: typeof text === "string" ? text : null, present: !!document.querySelector(".ai-editor-root") }; })()'
-}
-function pickerDestroyExpression() {
-  return 'if (window.__SELECTOR_DESTROY__) { window.__SELECTOR_DESTROY__(); }\nvar __dshStyle = document.getElementById(' + JSON.stringify(STYLE_ID) + ');\nif (__dshStyle) { __dshStyle.remove(); }'
-}
-
-/** Run `script` in the active tab's guest: webview via executeJavaScript
- *  (no same-origin restriction — the guest is a real Chromium page), iframe
- *  via a <script> element (the browser blocks cross-origin iframe access). */
-async function pickerRunScript(script, userGesture) {
-  const surface = browserStore.getSurface()
-  if (!surface) return
-  if (surface.executeJavaScript) {
-    await surface.executeJavaScript(script, userGesture === true)
-    return
-  }
-  const frame = surface
-  const doc = frame.contentDocument
-  if (!doc) throw new Error('浏览器安全策略禁止标注跨域页面（iframe 模式）；请使用 dsh-desktop 桌面端，或导航到同源页面')
-  const el = doc.createElement('script')
-  el.textContent = script
-  ;(doc.head || doc.documentElement).appendChild(el)
-  el.remove()
-}
-
-/** Read the outbox directly from a same-origin iframe; null when opaque. */
-function pickerPollFrame(frame) {
-  try {
-    const win = frame.contentWindow
-    if (!win || !win.document) return null
-    const text = win[OUTBOX_KEY]
-    win[OUTBOX_KEY] = null
-    return {
-      text: typeof text === 'string' ? text : null,
-      present: !!win.document.querySelector('.ai-editor-root'),
-    }
-  } catch (e) {
-    return null
-  }
-}
-
-/** Tear the editor down and leave picking mode (silent, no toast). */
-async function pickerStop() {
-  pickerStopPoll()
-  browserStore.setPicking(false)
-  const surface = browserStore.getSurface()
-  if (!surface) return
-  try {
-    if (surface.executeJavaScript) {
-      await surface.executeJavaScript(pickerDestroyExpression(), false)
-    } else {
-      const win = surface.contentWindow
-      if (win) {
-        if (typeof win.__SELECTOR_DESTROY__ === 'function') win.__SELECTOR_DESTROY__()
-        const style = win.document && win.document.getElementById(STYLE_ID)
-        if (style) style.remove()
-      }
-    }
-  } catch (e) { /* guest navigated away or was destroyed; nothing to tear down */ }
-}
-
-async function pickerStart() {
-  const surface = browserStore.getSurface()
-  if (!surface) return
-  try {
-    await pickerRunScript(pickerInjectionCode(browserStore.get().activeTabId), true)
-  } catch (err) {
-    browserStore.showToast(err instanceof Error ? err.message : String(err))
-    return
-  }
-  browserStore.setPicking(true)
-  pickerStartPoll()
-}
-
-function pickerToggle() {
-  if (browserStore.get().picking) void pickerStop()
-  else void pickerStart()
-}
-
-function pickerStartPoll() {
-  if (pickPollTimer) return
-  pickPollTimer = setInterval(() => { void pickerPollTick() }, PICK_POLL_INTERVAL_MS)
-}
-function pickerStopPoll() {
-  if (pickPollTimer) {
-    clearInterval(pickPollTimer)
-    pickPollTimer = null
-  }
-}
-
-async function pickerPollTick() {
-  if (pickSending || !browserStore.get().picking) return
-  const surface = browserStore.getSurface()
-  if (!surface) { void pickerStop(); return }
-  let polled = null
-  if (surface.executeJavaScript) {
-    try {
-      polled = await surface.executeJavaScript(pickerPollExpression(), false)
-    } catch (e) {
-      // Guest destroyed mid-navigation (manual nav while picking).
-      void pickerStop()
-      return
-    }
-  } else {
-    polled = pickerPollFrame(surface)
-    if (polled === null) { void pickerStop(); return }
-  }
-  if (polled && typeof polled.text === 'string' && polled.text.length > 0) {
-    await pickerHandleOutbox(polled.text)
-    return
-  }
-  if (polled && polled.present === false) {
-    // The editor vanished without our teardown (closed via its ✕, or a real
-    // navigation replaced the document). Exit silently.
-    void pickerStop()
-  }
-}
-
-async function pickerHandleOutbox(text) {
-  pickSending = true
-  try {
-    await pickerSendToSession(text)
-    await pickerStop()
-    browserStore.showToast('标注已发送给助手', true)
-  } catch (err) {
-    // Failure (no active session / RPC error): keep the editor, show the red toast.
-    browserStore.showToast(err instanceof Error ? err.message : String(err))
-  } finally {
-    pickSending = false
-  }
-}
-
-/** Subscribe once: closing the browser aborts an armed pick. */
-function pickerMount() {
-  if (pickUnsubscribe) return
-  pickUnsubscribe = browserStore.subscribe(() => {
-    if (!browserStore.get().open && browserStore.get().picking) void pickerStop()
-  })
-}
-
-// Page-side controller the Desktop shell drives via executeJavaScript
-// (out/main/index.js forwards /browser/command here). Replaces the
-// builtin-browser bundle's controller so the agent's browser_* tools drive the
-// in-session surfaces instead of the (removed) full-screen panel.
-const CONTENT_TEXT_LIMIT = 50000
-const pageBrowserController = {
-  async command(payload) {
-    const op = payload && payload.op
-    const el = browserStore.getSurface()
-    switch (op) {
-      case 'tab-list': {
-        const st = browserStore.get()
-        return {
-          ok: true,
-          tabs: st.tabs.map((t) => ({ id: t.id, url: t.current, title: t.title, active: t.id === st.activeTabId })),
-        }
-      }
-      case 'tab-new': {
-        const id = browserStore.addTab()
-        return { ok: true, id }
-      }
-      case 'tab-close': {
-        const id = Number(payload.id)
-        if (!browserStore.get().tabs.some((t) => t.id === id)) {
-          return { ok: false, error: 'no such tab: ' + String(payload.id) }
-        }
-        browserStore.closeTab(id)
-        return { ok: true }
-      }
-      case 'tab-activate': {
-        const id = Number(payload.id)
-        if (!browserStore.get().tabs.some((t) => t.id === id)) {
-          return { ok: false, error: 'no such tab: ' + String(payload.id) }
-        }
-        browserStore.activateTab(id)
-        return { ok: true, id }
-      }
-    }
-    if (op === 'navigate') {
-      const url = String(payload.url || '')
-      if (!url) return { ok: false, error: 'navigate requires a url' }
-      browserStore.setOpen(true)
-      activateBrowserView()
-      const surf = browserStore.getSurface()
-      if (!surf) {
-        browserStore.setPendingCommand({ op: 'navigate', url })
-        return { ok: true, url, title: '', pending: true }
-      }
-      if (surf.loadURL) {
-        try { await surf.loadURL(url) } catch (err) { return { ok: false, error: errorText(err) } }
-      } else {
-        surf.setAttribute('src', url)
-      }
-      browserStore.setAddress(url)
-      return { ok: true, url, title: surf.getTitle ? surf.getTitle() : '' }
-    }
-    if (!el) return { ok: false, error: '浏览器面板未挂载' }
-    switch (op) {
-      case 'back':
-        if (el.goBack) el.goBack()
-        return { ok: true, url: el.getURL ? el.getURL() : '', title: el.getTitle ? el.getTitle() : '' }
-      case 'forward':
-        if (el.goForward) el.goForward()
-        return { ok: true, url: el.getURL ? el.getURL() : '', title: el.getTitle ? el.getTitle() : '' }
-      case 'reload':
-        if (el.reload) el.reload()
-        return { ok: true }
-      case 'stop':
-        if (el.stop) el.stop()
-        return { ok: true }
-      case 'eval': {
-        const script = String(payload.script || '')
-        if (!el.executeJavaScript) return { ok: false, error: 'executeJavaScript unavailable outside the Electron shell' }
-        try {
-          const result = await el.executeJavaScript(script, true)
-          return { ok: true, result: result === undefined ? null : result }
-        } catch (err) { return { ok: false, error: errorText(err) } }
-      }
-      case 'content': {
-        if (!el.executeJavaScript) return { ok: false, error: 'executeJavaScript unavailable outside the Electron shell' }
-        try {
-          const text = await el.executeJavaScript('document.body ? document.body.innerText : ""', true)
-          const full = typeof text === 'string' ? text : ''
-          return {
-            ok: true,
-            url: el.getURL ? el.getURL() : '',
-            title: el.getTitle ? el.getTitle() : '',
-            text: full.slice(0, CONTENT_TEXT_LIMIT),
-            truncated: full.length > CONTENT_TEXT_LIMIT,
-          }
-        } catch (err) { return { ok: false, error: errorText(err) } }
-      }
-      case 'screenshot': {
-        const id = el.getWebContentsId ? el.getWebContentsId() : undefined
-        if (!id) return { ok: false, error: 'webContents id unavailable outside the Electron shell' }
-        return { ok: true, webContentsId: id }
-      }
-      default:
-        return { ok: false, error: 'unknown browser command: ' + String(op) }
-    }
-  },
-}
 
 // --- markdown renderer (dependency-free mini renderer) ---
 function escapeHtml(s) {
@@ -1519,7 +1131,7 @@ function BrowserSurface() {
     if (!inShell || wv.__dshPreviewBound) return
     wv.__dshPreviewBound = true
     const isActive = () => browserStore.get().activeTabId === tabId
-    wv.addEventListener('did-navigate', () => { if (isActive()) { refreshNavState(); void pickerStop() } })
+    wv.addEventListener('did-navigate', () => { if (isActive()) { refreshNavState(); void stopPicking() } })
     wv.addEventListener('did-navigate-in-page', () => { if (isActive()) refreshNavState() })
     wv.addEventListener('did-finish-load', () => { if (isActive()) { setLoading(false); refreshNavState() } })
     wv.addEventListener('did-start-loading', () => { if (isActive()) setLoading(true) })
@@ -1539,14 +1151,19 @@ function BrowserSurface() {
   }, [state.activeTabId, refreshNavState])
 
   // Leaving the browser view (or unmounting) aborts any armed pick.
-  React.useEffect(() => () => { void pickerStop() }, [])
+  React.useEffect(() => () => { void stopPicking() }, [])
 
   const navigate = React.useCallback((input) => {
     const url = toUrl(input)
     const shown = url === BLANK_PAGE ? '' : url
     browserStore.setAddress(shown)
     const wv = browserStore.getSurface()
-    if (!wv) return
+    if (!wv) {
+      // View just activated; the surface binds on its next mount. Queue the
+      // command so bindSurface loads this URL (shared core behavior).
+      browserStore.setPendingCommand({ op: 'navigate', url })
+      return
+    }
     if (wv.loadURL) {
       setLoading(true)
       wv.loadURL(url).catch(() => setLoading(false))
@@ -1659,7 +1276,7 @@ function BrowserSurface() {
         className: 'dshbr-btn' + (state.picking ? ' dshbr-btn-picking' : ''),
         style: state.picking ? { opacity: 1 } : undefined,
         disabled: !annotatable,
-        onClick: () => pickerToggle(),
+        onClick: () => togglePicking(),
         title: !annotatable
           ? '当前页面为跨域 iframe，浏览器禁止标注；请使用 dsh-desktop 桌面端，或导航到同源页面'
           : (state.picking ? '结束标注' : '标注页面元素（拾取发给助手）'),
@@ -1696,7 +1313,7 @@ function BrowserSurface() {
             // A real navigation replaced the guest document: any injected
             // editor is gone, so leave picking mode; the new page may also be
             // cross-origin (iframe), which 标注 cannot reach.
-            if (browserStore.get().picking) void pickerStop()
+            if (browserStore.get().picking) void stopPicking()
             refreshAnnotatable()
           },
           title: '内置浏览器',
@@ -1773,26 +1390,32 @@ function BrowserView() {
 }
 
 // ---- plugin apply ----
-function apply(ctx) {
+async function apply(ctx) {
   pluginCtx = ctx
   const slots = ctx.get('slots')
   if (slots === undefined) return
   const disposeCss = insertCss(CSS)
 
-  // Install our browser controller (the Desktop shell drives the agent's
-  // browser_* tools through window.__dshBrowser); restore the previous one on
-  // teardown. Detect the Electron shell (desktopBridge carries the port).
-  const win = typeof globalThis !== 'undefined' ? globalThis : null
-  if (win) {
-    const previousBrowserController = win.__dshBrowser
-    win.__dshBrowser = pageBrowserController
-    ctx.effect(() => () => {
-      if (win.__dshBrowser === pageBrowserController) win.__dshBrowser = previousBrowserController
-    })
-    if (win.desktopBridge && win.desktopBridge.browserPort) {
-      browserStore.setInShell(true)
-    }
-  }
+  // Resolve the shared browser core (dsh-builtin-browser/client) through the
+  // async module import: it arrives the core's bundle row (registers its
+  // factory) before resolving, so this is race-free even though client entries
+  // boot in parallel. Bind the module-level identifiers the views and the
+  // click handler reference; React renders after apply resolves.
+  const core = await ctx.modules.import('dsh-builtin-browser/client')
+  browserStore = core.browserStore
+  pageBrowserController = core.pageBrowserController
+  BLANK_PAGE = core.BLANK_PAGE
+  setOpenHandler = core.setOpenHandler
+  togglePicking = core.togglePicking
+  stopPicking = core.stopPicking
+
+  // The browser controller (window.__dshBrowser) and the 标注 pick flow are
+  // owned by the shared core (dsh-builtin-browser), which mounts them in its
+  // own apply — nothing to install or override here. This view only teaches
+  // the core what "open the browser" means in this composition: switch the
+  // conversation view ring to the in-session 内置浏览器 view.
+  setOpenHandler(() => activateBrowserView())
+  ctx.effect(() => () => setOpenHandler(null))
 
   // Clicking an http(s) link anywhere in the harness GUI opens it in the
   // in-session 内置浏览器 view. Chat markdown renders URLs with
@@ -1817,8 +1440,8 @@ function apply(ctx) {
   document.addEventListener('click', onDocLinkClick, true)
   ctx.effect(() => () => document.removeEventListener('click', onDocLinkClick, true))
 
-  // 标注 pick flow: closing the browser aborts an armed pick.
-  pickerMount()
+  // (Closing the browser aborts an armed pick — the shared core's pick flow
+  // subscribes to its own store for that; nothing to wire here.)
 
   // One level of the current session's cwd via the host fileReferences Remote.
   // relDir '' = root; any other value is a relative directory path.
@@ -1881,18 +1504,19 @@ function apply(ctx) {
       order: 30,
       label: () => '内置浏览器',
     }, BrowserView)))
-    // Kill the built-in full-screen browser overlay (same id replaces it).
+    // Composition choice: in THIS profile the browser is the in-session view,
+    // so dsh-builtin-browser's own floating panel + sidebar toggle are kept
+    // from surfacing. The engine is shared (builtinBrowser closure symbols);
+    // only its standalone UI is shadowed — same-id empty entries replace them
+    // (client bundle config is not delivered to the client, so this is the
+    // reliable switch). Compositions that want the floating panel instead can
+    // simply not load this package.
     disposers.push(slots.inject('shell.overlay', () => slots.register({
       name: 'shell.overlay',
       id: 'builtin-browser',
       order: 10,
       priority: -1,
     }, () => null)))
-    // Suppress the built-in sidebar footer browser toggle: the browser lives in
-    // the session-area 预览 view (opened via the 预览 header tab / the 内置浏览器
-    // mode tab, or automatically by the agent's browser_* tools). dsh-builtin-browser
-    // registers the SAME slot id, so an empty same-id entry at a higher priority
-    // keeps its button from resurfacing (same mechanism as the overlay above).
     disposers.push(slots.inject('sidebar.footer.action', () => slots.register({
       name: 'sidebar.footer.action',
       id: 'builtin-browser',

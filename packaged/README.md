@@ -17,12 +17,19 @@
 
 ## 结构
 
-- `src/index.js` — Host 半边：空 apply（纯 UI 插件占位）。
-- `src/client/index.js` — Client 半边：重绘 `sidebar`（priority −1）+ 活动栏 + 会话工作区树 + 资源管理器（右键菜单：复制路径/复制相对路径/添加到会话 → 原生 `@file` chip）。会话面板同样带右键菜单：工作区行「复制路径」，会话行「分叉会话 / 归档会话」（与原版 ui-workspace 同一套 `sessions.fork` / `workspaces.archiveSession` 服务）。
-- `build.mjs` — 无工具链构建：把 client 源码包进 `window.__ModuleLoader__.load({id, factory})` 闭包工厂（`React` 由 `require('react')` 解析），产出 `lib/client.js`；`lib/index.js` 为 ESM 空 host。构建时还会把 `vendor/selector/` 里 vendored 的 Selector 编辑器（标注功能）读入 `editorBundle` / `editorCss` 两个字符串常量打进 bundle。
-- `vendor/selector/` — vendored [oil-oil/selector](https://github.com/oil-oil/selector)（MIT）标注编辑器快照：`editor.bundle.js` + `editor.css` + LICENSE/NOTICE。**不要手改**：从 dsh-builtin-browser 同目录同步。
-- `smoke.mjs` — 冒烟测试：加载闭包工厂、调用 `apply`（无 slots 早退 + 全量注册 5 个槽位）。
+- `src/index.js` — Host 半边：空 apply（纯 UI 插件占位）+ `/preview-fs` RPC（资源管理器/预览视图读目录与文件）。
+- `src/client/index.js` — Client 半边：重绘 `sidebar`（priority −1）+ 活动栏 + 会话工作区树 + 资源管理器（右键菜单：复制路径/复制相对路径/添加到会话 → 原生 `@file` chip）+ 会话区「预览 / 内置浏览器」视图。**浏览器本体不再是本包的一部分**：内置浏览器引擎（store / 控制器 / 标注流程）由 `dsh-builtin-browser` 提供，本包只渲染会话区视图并通过 `ctx.modules.import('dsh-builtin-browser/client')` 异步取用共享核心（详见下方「与 dsh-builtin-browser 的关系」）。
+- `build.mjs` — 无工具链构建：把 client 源码包进 `window.__ModuleLoader__.load({id, factory})` 闭包工厂（`React` 由 `require('react')` 解析，浏览器核心**不在 factory 顶层 require**——client 条目并行启动，同步 require 会竞态；改由 `apply()` 里 `ctx.modules.import()` 异步解析，再把模块级绑定赋给视图），产出 `lib/client.js`；`lib/index.js` 为 ESM host。
+- `vendor/selector/` — 保留的 vendored [oil-oil/selector](https://github.com/oil-oil/selector)（MIT）快照（**不再打进 bundle**，标注编辑器随核心包走）。
+- `smoke.mjs` — 冒烟测试：加载闭包工厂、调用 `apply`（无 slots 早退 + 全量注册 9 个槽位），stub 掉 `ctx.modules.import` 的核心。
 - `cordis.patch.yml` — bundle 层：把本包插入 web-app client roster。
+
+## 与 dsh-builtin-browser 的关系（职责划分）
+
+- **dsh-builtin-browser = 浏览器核心包**：一份 store（`browserStore`，含 pending 命令）、一份页面控制器（`pageBrowserController`，挂载 `window.__dshBrowser`）、一份标注流程（`setupPickFlow`/`togglePicking`/`stopPicking`，webview + iframe 双通道），以及它自带的独立悬浮面板 UI。
+- **dsh-sidebar-live = 视图 + 组合开关**：本包通过 `ctx.modules.import('dsh-builtin-browser/client')` 复用同一套引擎，只实现自己的会话区「内置浏览器」视图（`BrowserView`），并通过 `setOpenHandler(() => activateBrowserView())` 告诉核心「打开浏览器 = 切到会话区视图」；本包不再 fork store/控制器/标注，也不再覆盖 `window.__dshBrowser`。
+- 悬浮面板 vs 会话区视图二选一：本包在 `shell.overlay` / `sidebar.footer.action` 注册同名空条目（同 id 替换）压制 builtin-browser 的悬浮面板与侧边栏按钮——client 端拿不到组合 config，这是可靠的组合级开关；想要悬浮面板的组合不装本包即可。
+- 依赖顺序：manifest 中 `dsh-builtin-browser` 须先于本包加载（profile bundles 顺序已保证）；本包 `apply()` 的异步 import 自带 graph-row 到达，即使并行启动也不会竞态。
 
 ## 内置浏览器的「标注」与预览态布局
 
@@ -30,7 +37,7 @@
 
 - **预览** = 纯文件预览（`PreviewView` → `FilePreviewSurface`）。
 - **内置浏览器** = 独立的同级视图（`BrowserView` → `BrowserSurface`），agent 调 `browser_*` 工具时自动切过来。
-- **对话/页面里的 `http(s)` 链接，单击即在此视图打开**：Client 半区在 document 上挂了一个 capture 阶段 click 拦截（`onDocLinkClick`），左键单击（无修饰键）命中绝对 `http(s)` 链接时 `preventDefault` 并调用本插件的浏览器控制器 `navigate`，自动切到「内置浏览器」视图并加载该地址。原因：对话 markdown 渲染的链接带 `target="_blank"`，单击会走 `window.open`，而 Desktop 外壳对 `127.0.0.1` 回环地址直接拒绝（预览链接点击无反应）、其余地址丢给系统浏览器。按住 ⌘/Ctrl 等修饰键则保留默认行为。
+- **对话/页面里的 `http(s)` 链接，单击即在此视图打开**：本包在 document 上挂了一个 capture 阶段 click 拦截（`onDocLinkClick`），左键单击（无修饰键）命中绝对 `http(s)` 链接时 `preventDefault` 并调用**共享核心**的浏览器控制器 `navigate`（核心经 `setOpenHandler` 回调到本包的 `activateBrowserView`），自动切到「内置浏览器」视图并加载该地址。原因：对话 markdown 渲染的链接带 `target="_blank"`，单击会走 `window.open`，而 Desktop 外壳对 `127.0.0.1` 回环地址直接拒绝（预览链接点击无反应）、其余地址丢给系统浏览器。按住 ⌘/Ctrl 等修饰键则保留默认行为。
 
 内置浏览器工具栏最右侧有一个 **⌖ 标注** 按钮（拾取页面元素、加注释、一键「发送到会话」生成 Design Feedback markdown，由 vendored Selector 编辑器实现）：
 
