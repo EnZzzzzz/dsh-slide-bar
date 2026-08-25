@@ -26,14 +26,19 @@
 
 ## 内置浏览器的「标注」与预览态布局
 
-会话区的 预览 视图（`PreviewView` → `BrowserSurface`）在工具栏最右侧提供一个 **⌖ 标注** 按钮（拾取页面元素、加注释、一键「发送到会话」生成 Design Feedback markdown，由 vendored Selector 编辑器实现）：
+会话头部的视图环现在有四个 tab：**对话 / 轨迹 / 预览 / 内置浏览器**。
+
+- **预览** = 纯文件预览（`PreviewView` → `FilePreviewSurface`）。
+- **内置浏览器** = 独立的同级视图（`BrowserView` → `BrowserSurface`），agent 调 `browser_*` 工具时自动切过来。
+
+内置浏览器工具栏最右侧有一个 **⌖ 标注** 按钮（拾取页面元素、加注释、一键「发送到会话」生成 Design Feedback markdown，由 vendored Selector 编辑器实现）：
 
 - **Electron 外壳内**（`window.desktopBridge` 存在，渲染 `<webview>`）：通过 `webview.executeJavaScript` 把编辑器注入 guest 页，跨域站点也能标注。
 - **普通浏览器**（渲染 `<iframe>`）：同源页面（含 about:blank / 本地页面）通过 `<script>` 元素注入；跨域页面不可标注，点击会显示红色提示。
 
 编辑器内点「发送到会话」后，生成的 markdown 会以排队 prompt 发进当前会话，标注自动结束。
 
-另外，当 预览 视图激活时（`.dshpv-root` 出现在会话滚动区内），底部输入框（composer）自动隐藏，把整块空间让给浏览器/文件预览；切回「对话」视图即恢复。该规则依赖会话外壳的稳定属性选择器：
+另外，当 预览 或 内置浏览器 视图激活时（`.dshpv-root` 出现在会话滚动区内），底部输入框（composer）自动隐藏，把整块空间让给浏览器/文件预览；切回「对话」视图即恢复。该规则依赖会话外壳的稳定属性选择器：
 
 ```css
 [data-conversation-scroll]:has(.dshpv-root) > [data-composer-seat] { display: none; }

@@ -136,10 +136,7 @@ const CSS = `
 .dshsb-hint{flex:none;padding:3px 10px 6px;font-size:12px;color:var(--dsw-alias-state-warn-primary)}
 .dshpv-root{flex:1;min-height:0;display:flex;flex-direction:column;box-sizing:border-box;background:var(--dsw-alias-bg-base)}
 .dshpv-modetabs{flex:none;display:flex;align-items:center;gap:2px;padding:6px 10px;border-bottom:1px solid var(--dsw-alias-border-l1);box-sizing:border-box}
-.dshpv-modetab{flex:none;display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px;border:none;border-radius:7px;background:transparent;cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:12.5px;font-family:inherit}
-.dshpv-modetab:hover{background:var(--dsw-alias-bg-layer-1)}
-.dshpv-modetab-active,.dshpv-modetab-active:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
-.dshpv-modetitle{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:right;font-size:12px;color:var(--dsw-alias-label-secondary);opacity:.7;padding:0 4px}
+.dshpv-filehead{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12.5px;color:var(--dsw-alias-label-secondary);opacity:.85;padding:0 2px}
 .dshpv-status{display:flex;align-items:center;gap:8px;padding:14px 16px;color:var(--dsw-alias-label-secondary);font-size:13px}
 .dshpv-error{color:var(--dsw-alias-state-error-primary);overflow-wrap:break-word}
 .dshpv-empty{padding:40px 20px;text-align:center;color:var(--dsw-alias-label-secondary);font-size:13px}
@@ -930,8 +927,8 @@ function ExplorerPanel(props) {
 // dsh-builtin-browser's store/controller so the agent's browser_* tools keep
 // working (window.__dshBrowser points at our controller).
 
-// --- preview store: mode 'file' | 'browser'; file = { path, name, ext, kind } ---
-let previewState = { mode: 'file', file: null }
+// --- preview store: the file open in the 预览 (file preview) view ---
+let previewState = { file: null }
 const previewListeners = new Set()
 function previewEmit() {
   for (const l of previewListeners) { try { l() } catch (e) {} }
@@ -939,32 +936,28 @@ function previewEmit() {
 const previewStore = {
   get() { return previewState },
   subscribe(listener) { previewListeners.add(listener); return () => previewListeners.delete(listener) },
-  setMode(mode) {
-    if (previewState.mode === mode) return
-    previewState = Object.assign({}, previewState, { mode })
-    previewEmit()
-  },
   openFile(path, kind) {
     const name = basenamePath(path) || path
     const ext = (name.split('.').pop() || '').toLowerCase()
-    previewState = { mode: 'file', file: { path, name, ext, kind } }
+    previewState = { file: { path, name, ext, kind } }
     previewEmit()
   },
 }
 
-// Switch the conversation view ring to our entry by simulating the header tab
-// click (the active view lives in the chat store's internal `view` field,
-// which has no public setter).
-function activatePreviewView() {
+// Switch the conversation view ring to one of our entries by simulating the
+// header tab click (the active view lives in the chat store's internal `view`
+// field, which has no public setter).
+function activateViewByLabel(label) {
   try {
     const tabs = document.querySelectorAll('[role="tablist"] button[role="tab"]')
     for (const b of tabs) {
-      const txt = b.textContent || ''
-      if (txt.trim() === '预览') { b.click(); return true }
+      if ((b.textContent || '').trim() === label) { b.click(); return true }
     }
   } catch (e) { /* ignore */ }
   return false
 }
+function activatePreviewView() { return activateViewByLabel('预览') }
+function activateBrowserView() { return activateViewByLabel('内置浏览器') }
 
 // --- built-in browser engine (ported from dsh-builtin-browser store.ts) ---
 const BLANK_PAGE = 'about:blank'
@@ -1297,9 +1290,8 @@ const pageBrowserController = {
     if (op === 'navigate') {
       const url = String(payload.url || '')
       if (!url) return { ok: false, error: 'navigate requires a url' }
-      previewStore.setMode('browser')
       browserStore.setOpen(true)
-      activatePreviewView()
+      activateBrowserView()
       const surf = browserStore.getSurface()
       if (!surf) {
         browserStore.setPendingCommand({ op: 'navigate', url })
@@ -1750,30 +1742,26 @@ function FilePreviewSurface({ file }) {
       : React.createElement('pre', { className: 'dshpv-pre' }, data.text))
 }
 
+// 预览 view = file preview only (the browser is its own sibling view in the
+// conversation view ring). A slim header shows the open file's name.
 function PreviewView() {
   const [pstate, setPstate] = React.useState(previewStore.get())
   React.useEffect(() => previewStore.subscribe(() => setPstate(previewStore.get())), [])
-  const mode = pstate.mode
+  const file = pstate.file
+  const header = file
+    ? React.createElement('div', { className: 'dshpv-modetabs' },
+      React.createElement('span', { className: 'dshpv-filehead' }, file.name))
+    : null
+  return React.createElement('div', { className: 'dshpv-root' },
+    header,
+    React.createElement(FilePreviewSurface, { file }))
+}
 
-  const header = React.createElement('div', { className: 'dshpv-modetabs' },
-    React.createElement('button', {
-      type: 'button',
-      className: mode === 'file' ? 'dshpv-modetab dshpv-modetab-active' : 'dshpv-modetab',
-      onClick: () => previewStore.setMode('file'),
-    }, React.createElement(SvgIcon, { d: ICONS.file, size: 14 }), React.createElement('span', null, '文件预览')),
-    React.createElement('button', {
-      type: 'button',
-      className: mode === 'browser' ? 'dshpv-modetab dshpv-modetab-active' : 'dshpv-modetab',
-      onClick: () => { previewStore.setMode('browser'); browserStore.setOpen(true) },
-    }, React.createElement(SvgIcon, { d: ICONS.globe, size: 14 }), React.createElement('span', null, '内置浏览器')),
-    pstate.file
-      ? React.createElement('span', { className: 'dshpv-modetitle' }, pstate.file.name)
-      : null,
-  )
-  const body = mode === 'browser'
-    ? React.createElement(BrowserSurface)
-    : React.createElement(FilePreviewSurface, { file: pstate.file })
-  return React.createElement('div', { className: 'dshpv-root' }, header, body)
+// 内置浏览器 view: wraps BrowserSurface in the shared .dshpv-root chrome so
+// the composer-hiding rule applies while the browser is the active view.
+function BrowserView() {
+  return React.createElement('div', { className: 'dshpv-root' },
+    React.createElement(BrowserSurface))
 }
 
 // ---- plugin apply ----
@@ -1847,14 +1835,21 @@ function apply(ctx) {
     disposers.push(slots.register({ name: 'sidebar.activity', id: 'explorer', order: 2, priority: -1, inject: () => ({ panelId: 'explorer' }) }, ActivityIcon))
     disposers.push(slots.register({ name: 'sidebar.panel', id: 'sessions', order: 1, priority: -1, inject: () => ({ panelId: 'sessions' }) }, SessionsPanel))
     disposers.push(slots.register({ name: 'sidebar.panel', id: 'explorer', order: 2, priority: -1, inject: () => ({ panelId: 'explorer', listDirectory, openPath }) }, ExplorerPanel))
-    // Session-area 预览 view (conversation.view ring) — waits for the slot the
+    // Session-area views (conversation.view ring) — waits for the slot the
     // ui-conversation bundle declares, so registration order does not matter.
+    // 预览 = file preview; 内置浏览器 = its own sibling view, same level.
     disposers.push(slots.inject('conversation.view', () => slots.register({
       name: 'conversation.view',
       id: 'preview',
       order: 20,
       label: () => '预览',
     }, PreviewView)))
+    disposers.push(slots.inject('conversation.view', () => slots.register({
+      name: 'conversation.view',
+      id: 'browser',
+      order: 30,
+      label: () => '内置浏览器',
+    }, BrowserView)))
     // Kill the built-in full-screen browser overlay (same id replaces it).
     disposers.push(slots.inject('shell.overlay', () => slots.register({
       name: 'shell.overlay',

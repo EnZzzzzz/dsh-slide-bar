@@ -36,6 +36,6 @@ const mockCtx = {
   effect: (fn) => { fn(); return () => {} },
 }
 exportsObj.apply(mockCtx)
-if (registerCount !== 8) throw new Error(`expected 8 registrations, got ${registerCount}`)
+if (registerCount !== 9) throw new Error(`expected 9 registrations, got ${registerCount}`)
 console.log(`apply(full) OK — ${registerCount} slot registrations`)
 console.log('SMOKE OK')
