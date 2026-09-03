@@ -1,6 +1,6 @@
 {
   "name": "dsh-sidebar-live",
-  "description": "dsh Web UI plugin (formal installable bundle): VSCode-style sidebar with activity bar, sessions workspace tree, and a lazy file explorer with a right-click menu (copy path / relative path / add to session as @file). Self-contained: reshadowes the sidebar slot, file data via the host fileReferences Remote.",
+  "description": "dsh Web UI plugin (formal installable bundle): VSCode-style sidebar with activity bar, sessions workspace tree, and a lazy file explorer with a right-click menu (reveal in file manager / copy path / relative path / add to session as @file). Self-contained: reshadowes the sidebar slot, file data via the host fileReferences Remote.",
   "version": "0.1.0",
   "private": true,
   "type": "module",

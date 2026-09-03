@@ -2,12 +2,55 @@
  * dsh-sidebar-live host half.
  *
  * Pure-UI plugin plus the package-private loopback RPC channel `/preview-fs`
- * serving the browser half: one directory level (files + dirs) and file
- * preview content (UTF-8 text, or base64 image payload) over the `fs` service.
+ * serving the browser half: one directory level (files + dirs), file preview
+ * content (UTF-8 text, or base64 image payload) over the `fs` service, and
+ * the explorer row's "Reveal in Finder" verb (platform file-manager reveal).
  * The browser half calls the channel with plain fetch using the same message
  * shape as the connection rpc caller (see dsh-client-connection
  * createWebConnectionRpc), so no typert/Remote codegen is required.
  */
+
+import { spawn } from 'node:child_process'
+import { dirname } from 'node:path'
+
+/**
+ * Reveal a path in the host's file manager (Finder / Explorer), selecting the
+ * entry itself where the platform supports it; Linux has no standard select
+ * verb, so the containing folder is opened instead. Spawned without a shell:
+ * the path travels as one argv element and cannot smuggle a command.
+ * @param {string} path - absolute host path (already existence-checked).
+ * @returns {Promise<void>} resolves when the platform command was spawned.
+ */
+function revealInFileManager(path) {
+  const platform = process.platform
+  let command
+  let args
+  if (platform === 'darwin') {
+    command = 'open'
+    args = ['-R', path]
+  } else if (platform === 'win32') {
+    command = 'explorer.exe'
+    args = ['/select,' + path]
+  } else if (platform === 'linux') {
+    command = 'xdg-open'
+    args = [dirname(path)]
+  } else {
+    return Promise.reject(new Error('当前平台不支持在文件管理器中显示'))
+  }
+  return new Promise((resolve, reject) => {
+    let child
+    try {
+      child = spawn(command, args, { stdio: 'ignore', detached: true })
+    } catch (err) {
+      reject(err instanceof Error ? err : new Error(String(err)))
+      return
+    }
+    child.once('error', (err) => { reject(err) })
+    // explorer.exe exits non-zero on a successful /select,, and the reveal is
+    // fire-and-forget either way: unref and report success once spawned.
+    child.once('spawn', () => { child.unref(); resolve() })
+  })
+}
 
 export function apply(ctx) {
   const errorText = (err) => (err && err.message ? String(err.message) : String(err))
@@ -118,6 +161,25 @@ export function apply(ctx) {
           }
           return { ok: false, error: msg }
         }
+      }
+      if (endpoint === 'reveal-path') {
+        // Explorer row "在 Finder 中显示": existence-check through the fs
+        // service first so a stale row answers with a readable error, then
+        // hand the path to the platform file manager's reveal verb.
+        const path = payload && typeof payload.path === 'string' ? payload.path : ''
+        if (path === '') return { ok: false, error: '未提供文件路径' }
+        let target
+        try {
+          target = await fs.resolve(path)
+        } catch (err) {
+          return { ok: false, error: errorText(err) }
+        }
+        try {
+          await revealInFileManager((target && target.displayPath) || path)
+        } catch (err) {
+          return { ok: false, error: errorText(err) }
+        }
+        return { ok: true, path: (target && target.displayPath) || path }
       }
       return { ok: false, error: 'unknown preview endpoint: ' + String(endpoint) }
     }, { authority: 'loopback' })

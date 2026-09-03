@@ -279,6 +279,28 @@ function basenamePath(path) {
   const parts = path.replace(/[/\\]+$/, '').split(/[/\\]/)
   return parts[parts.length - 1] || ''
 }
+
+// Reveal a path in the host's file manager (Finder / Explorer): the host
+// half's `/preview-fs` 'reveal-path' endpoint spawns the platform reveal
+// command. Best-effort like copyText — a failure only warns.
+function revealInFileManager(path) {
+  rpcCall('reveal-path', { path }).then((result) => {
+    if (!result || result.ok !== true) {
+      console.warn('reveal-path rejected:', result && result.error ? result.error : result)
+    }
+  }).catch((reason) => { console.warn('reveal-path failed:', reason) })
+}
+// The reveal verb labels itself after the host's file manager; the desktop
+// host and this page share the machine, so the client platform is the host's.
+function revealMenuLabel() {
+  if (typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || navigator.userAgent || '')) {
+    return '在 Finder 中显示'
+  }
+  if (typeof navigator !== 'undefined' && /Win/i.test(navigator.platform || navigator.userAgent || '')) {
+    return '在资源管理器中显示'
+  }
+  return '打开所在文件夹'
+}
 // Add a path to the current session's composer as a native `@file` mention:
 // files become a real chip occurrence (insertReference, appearance 'file'),
 // directories the plain `@dir/` text — mirroring the shipped @ source.
@@ -763,17 +785,20 @@ function ExplorerMenu({ menu, rootPath, currentId, onClose }) {
   if (menu === null) return null
   const vw = typeof window !== 'undefined' ? window.innerWidth : 480
   const vh = typeof window !== 'undefined' ? window.innerHeight : 360
+  // Four items at ~30px each plus the menu's own padding.
   const x = Math.max(4, Math.min(menu.x, vw - 190))
-  const y = Math.max(4, Math.min(menu.y, vh - 128))
+  const y = Math.max(4, Math.min(menu.y, vh - 158))
   const abs = joinAbs(rootPath, menu.relPath)
   const copyAbs = () => { copyText(abs); onClose() }
   const copyRel = () => { copyText(menu.relPath); onClose() }
   const addToSession = () => { addPathToSession(abs, menu.kind, currentId); onClose() }
+  const reveal = () => { revealInFileManager(abs); onClose() }
   return React.createElement('div', {
     className: 'dshsb-menu',
     style: { left: x, top: y },
     onContextMenu: (e) => { e.preventDefault() },
   },
+    React.createElement('button', { type: 'button', className: 'dshsb-menu-item', onClick: reveal }, revealMenuLabel()),
     React.createElement('button', { type: 'button', className: 'dshsb-menu-item', onClick: copyAbs }, '复制路径'),
     React.createElement('button', { type: 'button', className: 'dshsb-menu-item', onClick: copyRel }, '复制相对路径'),
     React.createElement('button', { type: 'button', className: 'dshsb-menu-item', onClick: addToSession }, '添加到会话'))
