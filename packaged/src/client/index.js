@@ -76,6 +76,7 @@ const ICONS = {
   panelLeft: 'M6 2.5 H4.5 A1.5 1.5 0 0 0 3 4 V12 A1.5 1.5 0 0 0 4.5 13.5 H6 Z M6 2.5 V13.5 M13.5 2.5 H11.5 V13.5 H13.5 Z',
   chat: 'M2.5 4 A1.5 1.5 0 0 1 4 2.5 H12 A1.5 1.5 0 0 1 13.5 4 V9 A1.5 1.5 0 0 1 12 10.5 H7 L4 13.5 V10.5 H4 A1.5 1.5 0 0 1 2.5 9 Z',
   plus: 'M8 3 V13 M3 8 H13',
+  eye: 'M14.6 8 A6.6 4.6 0 1 1 1.4 8 A6.6 4.6 0 1 1 14.6 8 Z M10.1 8 A2.1 2.1 0 1 1 5.9 8 A2.1 2.1 0 1 1 10.1 8 Z',
   globe: 'M8 2 A6 6 0 1 1 8 14 A6 6 0 0 1 8 2 Z M2.5 8 H13.5 M8 2 C10 4.5 10 11.5 8 14 C6 11.5 6 4.5 8 2 Z',
   back: 'M9.5 3.5 L5 8 L9.5 12.5',
   forward: 'M6.5 3.5 L11 8 L6.5 12.5',
@@ -159,15 +160,22 @@ const CSS = `
 .dshpv-md table{border-collapse:collapse;margin:.8em 0;font-size:13px}
 .dshpv-md th,.dshpv-md td{border:1px solid var(--dsw-alias-border-l1);padding:6px 10px;text-align:left}
 .dshpv-md th{background:var(--dsw-alias-bg-layer-1)}
-/* Floating preview overlay: used when the session is blank and the
-   conversation view ring (with the 预览 tab) is not rendered at all. */
+/* Global floating views (预览 / 内置浏览器): hosted in the root-scope
+   shell.overlay slot, so they work without any conversation. */
 .dshpv-overlay{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35)}
-.dshpv-overlaybox{display:flex;flex-direction:column;width:min(720px,calc(100vw - 48px));height:min(560px,calc(100vh - 96px));border-radius:12px;background:var(--dsw-alias-bg-base);border:1px solid var(--dsw-alias-border-l2);box-shadow:0 12px 40px rgba(0,0,0,.25);overflow:hidden}
+.dshpv-overlaybox{display:flex;flex-direction:column;width:min(1200px,calc(100vw - 64px));height:min(820px,calc(100vh - 48px));border-radius:12px;background:var(--dsw-alias-bg-base);border:1px solid var(--dsw-alias-border-l2);box-shadow:0 12px 40px rgba(0,0,0,.25);overflow:hidden}
 .dshpv-overlayhead{flex:none;display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--dsw-alias-border-l1);box-sizing:border-box}
 .dshpv-overlaytitle{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary)}
-.dshpv-overlaynote{flex:none;font-size:11.5px;color:var(--dsw-alias-label-secondary);opacity:.8;white-space:nowrap}
 .dshpv-overlayclose{flex:none;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:none;border-radius:50%;padding:0;background:transparent;cursor:pointer;color:var(--dsw-alias-label-secondary)}
 .dshpv-overlayclose:hover{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}
+/* Top-right switcher: absolute against the positioned shell overlay layer,
+   above the dim backdrop so the views can be switched/closed while open.
+   top:54px aligns it with the tab row (empty on the right); the title row's
+   right side is taken by the session badge pill. */
+.dshgv-switcher{position:absolute;top:54px;right:10px;z-index:20001;display:flex;align-items:center;gap:2px;padding:2px;border-radius:999px;background:var(--dsw-alias-bg-overlay);border:1px solid var(--dsw-alias-border-l1);box-shadow:0 2px 10px rgba(0,0,0,.08);pointer-events:auto}
+.dshgv-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:none;border-radius:50%;padding:0;background:transparent;cursor:pointer;color:var(--dsw-alias-label-secondary)}
+.dshgv-btn:hover{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}
+.dshgv-btn-active,.dshgv-btn-active:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
 .dshbr-btn{display:flex;align-items:center;justify-content:center;flex:none;border:none;background:transparent;cursor:pointer;padding:4px;border-radius:50%;color:inherit;opacity:.85;transition:background-color 120ms ease,opacity 120ms ease}
 .dshbr-btn:hover:not(:disabled){background:rgba(77,107,254,.06);opacity:1}
 .dshbr-btn:disabled{opacity:.35;cursor:default}
@@ -189,10 +197,6 @@ const CSS = `
 /* Transient error/notice toast under the browser toolbar. */
 .dshbr-toast{display:flex;align-items:center;gap:8px;flex:none;padding:7px 12px;font-size:13px;line-height:1.4;border-bottom:1px solid rgba(220,38,38,.3);background:rgba(220,38,38,.12);color:#dc2626}
 .dshbr-toast-ok{border-bottom-color:rgba(22,163,74,.3);background:rgba(22,163,74,.1);color:#15803d}
-/* Hide the composer while the 预览 (file/browser) view is active: the preview
-   root only exists when the conversation view ring has this entry selected,
-   so the seat reappears automatically when the user switches back to 对话. */
-[data-conversation-scroll]:has(.dshpv-root) > [data-composer-seat]{display:none}
 `
 
 function joinAbs(root, rel) {
@@ -812,11 +816,6 @@ function ExplorerPanel(props) {
   if (controllersRef.current === undefined) controllersRef.current = new Map()
   const controllers = controllersRef.current
 
-  // Floating preview fallback: set when a previewable file was opened while
-  // the conversation view ring is unavailable (blank new session). Rendered
-  // as a portal overlay; see PreviewOverlay.
-  const [overlayFile, setOverlayFile] = React.useState(null)
-
   const rootPath = React.useMemo(() => deriveRootPath(sessions), [sessions])
 
   // Relative keys would go stale across a session switch: drop the cache and
@@ -878,11 +877,9 @@ function ExplorerPanel(props) {
     const kind = previewableOf(abs)
     if (kind !== null) {
       previewStore.openFile(abs, kind)
-      // A blank new session renders no conversation chrome at all (no view
-      // ring), so the 预览 tab cannot be activated there — open the same
-      // preview in a floating overlay instead of failing with a misleading
-      // "open a session first" hint.
-      if (!activatePreviewView()) setOverlayFile(previewStore.get().file)
+      // The preview lives in the global floating view (shell.overlay), so it
+      // opens the same way with or without a conversation.
+      globalViewStore.open('preview')
     } else {
       props.openPath(abs).catch(() => {})
     }
@@ -950,18 +947,25 @@ function ExplorerPanel(props) {
   return React.createElement('div', { className: 'dshsb-panelroot' }, header,
     React.createElement('div', { className: 'dshsb-tree', onScroll: closeMenu },
       React.createElement(DirectoryChildren, { path: '', depth: 0, view, load, abort, toggle, openFile, onContextMenu: openMenu })),
-    React.createElement(ExplorerMenu, { menu, rootPath, currentId: sessions.current, onClose: closeMenu }),
-    overlayFile ? React.createElement(PreviewOverlay, { file: overlayFile, onClose: () => setOverlayFile(null) }) : null)
+    React.createElement(ExplorerMenu, { menu, rootPath, currentId: sessions.current, onClose: closeMenu }))
 }
 
-// ---- preview feature: session-area 预览 view (file preview + built-in browser) ----
+// ---- preview feature: global floating 预览 / 内置浏览器 views ----
 // Ported from the runtime-preview dynamic plugin. The browser is NOT owned
 // here anymore: dsh-builtin-browser is the shared browser core (store +
 // controller + pick flow), bound in build.mjs as `builtinBrowser` closure
 // symbols (browserStore / pageBrowserController / BLANK_PAGE / setOpenHandler
-// / togglePicking / stopPicking). This file only renders the in-session 内置
-//浏览器 view against that engine and switches the conversation view to it via
+// / togglePicking / stopPicking). This file only renders the views against
+// that engine and teaches the core what "open the browser" means via
 // setOpenHandler.
+//
+// Both views are session-independent (the preview file lives in the
+// module-level previewStore; the browser engine is a global singleton), so
+// they are NOT registered in the session-scope `conversation.view` ring —
+// that ring only exists while a non-blank session is current. Instead they
+// live in a root-scope `shell.overlay` entry (GlobalViewsOverlay): two
+// top-right switcher buttons open the view in a floating panel over the
+// main area, usable with no conversation at all.
 
 // --- preview store: the file open in the 预览 (file preview) view ---
 let previewState = { file: null }
@@ -980,20 +984,26 @@ const previewStore = {
   },
 }
 
-// Switch the conversation view ring to one of our entries by simulating the
-// header tab click (the active view lives in the chat store's internal `view`
-// field, which has no public setter).
-function activateViewByLabel(label) {
-  try {
-    const tabs = document.querySelectorAll('[role="tablist"] button[role="tab"]')
-    for (const b of tabs) {
-      if ((b.textContent || '').trim() === label) { b.click(); return true }
-    }
-  } catch (e) { /* ignore */ }
-  return false
+// --- global view store: which floating view is open (null | 'preview' | 'browser') ---
+let globalViewState = { view: null }
+const globalViewListeners = new Set()
+function globalViewEmit() {
+  for (const l of globalViewListeners) { try { l() } catch (e) {} }
 }
-function activatePreviewView() { return activateViewByLabel('预览') }
-function activateBrowserView() { return activateViewByLabel('内置浏览器') }
+const globalViewStore = {
+  get() { return globalViewState },
+  subscribe(listener) { globalViewListeners.add(listener); return () => globalViewListeners.delete(listener) },
+  open(view) { globalViewState = { view }; globalViewEmit() },
+  close() {
+    if (globalViewState.view === null) return
+    globalViewState = { view: null }
+    globalViewEmit()
+  },
+  toggle(view) {
+    globalViewState = { view: globalViewState.view === view ? null : view }
+    globalViewEmit()
+  },
+}
 
 
 // --- markdown renderer (dependency-free mini renderer) ---
@@ -1399,8 +1409,8 @@ function FilePreviewSurface({ file }) {
       : React.createElement('pre', { className: 'dshpv-pre' }, data.text))
 }
 
-// 预览 view = file preview only (the browser is its own sibling view in the
-// conversation view ring). A slim header shows the open file's name.
+// 预览 view = file preview only (the browser is its own sibling floating
+// view). A slim header shows the open file's name.
 function PreviewView() {
   const [pstate, setPstate] = React.useState(previewStore.get())
   React.useEffect(() => previewStore.subscribe(() => setPstate(previewStore.get())), [])
@@ -1414,48 +1424,66 @@ function PreviewView() {
     React.createElement(FilePreviewSurface, { file }))
 }
 
-// Floating fallback preview: a brand-new session is blank until its first
-// message, and while blank the harness renders no conversation chrome at all —
-// no header, no view ring, so the 预览 tab cannot be activated (previously we
-// surfaced the misleading hint "预览需要先打开一个会话" even though a session
-// IS open). When activation fails, show the same file preview in a modal
-// overlay instead, portaled to <body> so no ancestor transform can clip it.
-// `ReactDOM` is a closure symbol provided by the build wrapper
-// (require('react-dom'), same as `React`).
-function PreviewOverlay({ file, onClose }) {
-  React.useEffect(() => {
-    if (typeof document === 'undefined') return
-    const onKey = (e) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
-  const panel = React.createElement('div', {
-    className: 'dshpv-overlay',
-    onMouseDown: (e) => { if (e.target === e.currentTarget) onClose() },
-  },
-    React.createElement('div', { className: 'dshpv-overlaybox', role: 'dialog', 'aria-modal': 'true', 'aria-label': '文件预览' },
-      React.createElement('div', { className: 'dshpv-overlayhead' },
-        React.createElement('span', { className: 'dshpv-overlaytitle' }, file ? file.name : '预览'),
-        React.createElement('span', { className: 'dshpv-overlaynote' }, '新会话尚无对话内容，预览以浮窗打开；发送消息后可在会话内「预览」视图查看'),
-        React.createElement('button', {
-          type: 'button',
-          className: 'dshpv-overlayclose',
-          onClick: onClose,
-          autoFocus: true,
-          'aria-label': '关闭预览',
-        }, React.createElement(SvgIcon, { d: ICONS.x, size: 14 }))),
-      React.createElement(FilePreviewSurface, { file })))
-  if (typeof ReactDOM !== 'undefined' && ReactDOM && typeof ReactDOM.createPortal === 'function' && typeof document !== 'undefined') {
-    return ReactDOM.createPortal(panel, document.body)
-  }
-  return panel
-}
-
-// 内置浏览器 view: wraps BrowserSurface in the shared .dshpv-root chrome so
-// the composer-hiding rule applies while the browser is the active view.
+// 内置浏览器 view: wraps BrowserSurface in the shared .dshpv-root chrome.
 function BrowserView() {
   return React.createElement('div', { className: 'dshpv-root' },
     React.createElement(BrowserSurface))
+}
+
+// Global views host, registered in the root-scope `shell.overlay` slot: two
+// switcher buttons pinned to the top-right corner of the frame, plus the
+// floating panel for the open view. Root scope means the buttons exist with
+// no conversation at all (a blank new session renders no header, so a
+// session-scope tab can never be reached there). The overlay layer is
+// pointer-events:none with pointer-events:auto on its children; the switcher
+// re-enables events for itself and the backdrop is a fixed full-viewport
+// element, so no static wrapper can block the page.
+function GlobalViewsOverlay() {
+  const [gv, setGv] = React.useState(globalViewStore.get())
+  React.useEffect(() => globalViewStore.subscribe(() => setGv(globalViewStore.get())), [])
+  const view = gv.view
+  React.useEffect(() => {
+    if (view === null || typeof document === 'undefined') return
+    const onKey = (e) => { if (e.key === 'Escape') globalViewStore.close() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [view])
+
+  const switcherButton = (id, label, icon) => {
+    const active = view === id
+    return React.createElement('button', {
+      key: id,
+      type: 'button',
+      className: active ? 'dshgv-btn dshgv-btn-active' : 'dshgv-btn',
+      title: label,
+      'aria-label': label,
+      'aria-pressed': active,
+      onClick: () => { globalViewStore.toggle(id) },
+    }, React.createElement(SvgIcon, { d: icon, size: 16 }))
+  }
+  const switcher = React.createElement('div', { className: 'dshgv-switcher' },
+    switcherButton('preview', '预览', ICONS.eye),
+    switcherButton('browser', '内置浏览器', ICONS.globe))
+
+  if (view === null) return switcher
+  const title = view === 'preview' ? '预览' : '内置浏览器'
+  return React.createElement(React.Fragment, null,
+    React.createElement('div', {
+      className: 'dshpv-overlay',
+      onMouseDown: (e) => { if (e.target === e.currentTarget) globalViewStore.close() },
+    },
+      React.createElement('div', { className: 'dshpv-overlaybox', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+        React.createElement('div', { className: 'dshpv-overlayhead' },
+          React.createElement('span', { className: 'dshpv-overlaytitle' }, title),
+          React.createElement('button', {
+            type: 'button',
+            className: 'dshpv-overlayclose',
+            onClick: () => { globalViewStore.close() },
+            autoFocus: true,
+            'aria-label': '关闭' + title,
+          }, React.createElement(SvgIcon, { d: ICONS.x, size: 14 }))),
+        view === 'preview' ? React.createElement(PreviewView) : React.createElement(BrowserView))),
+    switcher)
 }
 
 // ---- plugin apply ----
@@ -1481,13 +1509,13 @@ async function apply(ctx) {
   // The browser controller (window.__dshBrowser) and the 标注 pick flow are
   // owned by the shared core (dsh-builtin-browser), which mounts them in its
   // own apply — nothing to install or override here. This view only teaches
-  // the core what "open the browser" means in this composition: switch the
-  // conversation view ring to the in-session 内置浏览器 view.
-  setOpenHandler(() => activateBrowserView())
+  // the core what "open the browser" means in this composition: open the
+  // global floating 内置浏览器 view (works with no conversation at all).
+  setOpenHandler(() => globalViewStore.open('browser'))
   ctx.effect(() => () => setOpenHandler(null))
 
   // Clicking an http(s) link anywhere in the harness GUI opens it in the
-  // in-session 内置浏览器 view. Chat markdown renders URLs with
+  // floating 内置浏览器 view. Chat markdown renders URLs with
   // target="_blank", so the click would become window.open — the Desktop
   // shell denies loopback URLs outright (preview links appear dead) and sends
   // the rest to the system browser. Modifier-click keeps the default action.
@@ -1558,23 +1586,18 @@ async function apply(ctx) {
     disposers.push(slots.register({ name: 'sidebar.activity', id: 'explorer', order: 2, priority: -1, inject: () => ({ panelId: 'explorer' }) }, ActivityIcon))
     disposers.push(slots.register({ name: 'sidebar.panel', id: 'sessions', order: 1, priority: -1, inject: () => ({ panelId: 'sessions' }) }, SessionsPanel))
     disposers.push(slots.register({ name: 'sidebar.panel', id: 'explorer', order: 2, priority: -1, inject: () => ({ panelId: 'explorer', listDirectory, openPath }) }, ExplorerPanel))
-    // Session-area views (conversation.view ring) — waits for the slot the
-    // ui-conversation bundle declares, so registration order does not matter.
-    // 预览 = file preview; 内置浏览器 = its own sibling view, same level.
-    disposers.push(slots.inject('conversation.view', () => slots.register({
-      name: 'conversation.view',
-      id: 'preview',
+    // Global floating views (预览 / 内置浏览器) — root-scope overlay entry,
+    // so both are reachable without a conversation. Waits for the slot the
+    // ui-layout bundle declares, so registration order does not matter.
+    disposers.push(slots.inject('shell.overlay', () => slots.register({
+      name: 'shell.overlay',
+      id: 'global-views',
       order: 20,
-      label: () => '预览',
-    }, PreviewView)))
-    disposers.push(slots.inject('conversation.view', () => slots.register({
-      name: 'conversation.view',
-      id: 'browser',
-      order: 30,
-      label: () => '内置浏览器',
-    }, BrowserView)))
-    // Composition choice: in THIS profile the browser is the in-session view,
-    // so dsh-builtin-browser's own floating panel + sidebar toggle are kept
+      priority: -1,
+    }, GlobalViewsOverlay)))
+    // Composition choice: in THIS profile the browser is the floating view
+    // owned by the global-views entry above, so dsh-builtin-browser's own
+    // floating panel + sidebar toggle are kept
     // from surfacing. The engine is shared (builtinBrowser closure symbols);
     // only its standalone UI is shadowed — same-id empty entries replace them
     // (client bundle config is not delivered to the client, so this is the

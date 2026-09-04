@@ -43,7 +43,8 @@ await exportsObj.apply({ get: () => undefined, effect: () => {} })
 console.log('apply(no slots) OK')
 
 // apply with a mock slots registry exercising all registrations (the shell,
-// two activity + two panel entries, and the four inject-waited preview slots).
+// two activity + two panel entries, and the three inject-waited slots: the
+// global-views overlay entry plus the two builtin-browser shadow entries).
 let registerCount = 0
 const mockSlots = {
   register: () => { registerCount += 1; return () => {} },
@@ -55,6 +56,6 @@ const mockCtx = {
   modules: { import: async (id) => (id === 'dsh-builtin-browser/client' ? coreStub : {}) },
 }
 await exportsObj.apply(mockCtx)
-if (registerCount !== 9) throw new Error(`expected 9 registrations, got ${registerCount}`)
+if (registerCount !== 8) throw new Error(`expected 8 registrations, got ${registerCount}`)
 console.log(`apply(full) OK — ${registerCount} slot registrations`)
 console.log('SMOKE OK')
